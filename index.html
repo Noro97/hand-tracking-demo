@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Hand Tracking Demo</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+    <script>
+      // Silence MediaPipe camera_utils alert() on getUserMedia failure — log instead
+      (function () {
+        const nativeAlert = window.alert.bind(window);
+        window.alert = function (msg) {
+          if (typeof msg === 'string' && /camera|getUserMedia|NotAllowedError|Permission/i.test(msg)) {
+            console.warn('[suppressed alert]', msg);
+            return;
+          }
+          nativeAlert(msg);
+        };
+      })();
+    </script>
+    <!-- MediaPipe Dependencies served locally from /public (npm-installed, no CDN/CORS issues) -->
+    <script src="/mediapipe/camera_utils/camera_utils.js"></script>
+    <script src="/mediapipe/drawing_utils/drawing_utils.js"></script>
+    <script src="/mediapipe/hands/hands.js"></script>
+    <style>
+      body {
+        margin: 0;
+        background-color: #121212; /* Material Dark Background */
+        color: #e3e3e3;
+        overflow: hidden;
+        font-family: 'Roboto', sans-serif;
+      }
+      canvas {
+        transform: scaleX(-1); /* Mirror effect for natural feel */
+      }
+      video {
+        transform: scaleX(-1); /* Mirror effect for natural feel */
+        display: none; /* We draw video to canvas, so hide original */
+      }
+    </style>
+  <script type="importmap">
+{
+  "imports": {
+    "react": "https://esm.sh/react@^19.2.1",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.1/",
+    "react/": "https://esm.sh/react@^19.2.1/",
+    "lucide-react": "https://esm.sh/lucide-react@^0.556.0"
+  }
+}
+</script>
+</head>
+  <body>
+    <div id="root"></div>
+  <script type="module" src="/index.tsx"></script>
+</body>
+</html>
