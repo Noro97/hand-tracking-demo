@@ -36,9 +36,10 @@ for (const pkg of PACKAGES) {
   let bytes = 0;
   for (const file of readdirSync(src)) {
     const srcFile = join(src, file);
-    if (!statSync(srcFile).isFile()) continue;
+    const stat = statSync(srcFile);
+    if (!stat.isFile()) continue;
     copyFileSync(srcFile, join(dest, file));
-    bytes += statSync(srcFile).size;
+    bytes += stat.size;
     count++;
   }
   console.log(`[copy-mediapipe] ${pkg}: ${count} files, ${(bytes / 1024 / 1024).toFixed(1)} MB`);

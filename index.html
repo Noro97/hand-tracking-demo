@@ -4,7 +4,6 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Hand Tracking Demo</title>
-    <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
     <script>
       // Silence MediaPipe camera_utils alert() on getUserMedia failure — log instead
@@ -39,17 +38,7 @@
         display: none; /* We draw video to canvas, so hide original */
       }
     </style>
-  <script type="importmap">
-{
-  "imports": {
-    "react": "https://esm.sh/react@^19.2.1",
-    "react-dom/": "https://esm.sh/react-dom@^19.2.1/",
-    "react/": "https://esm.sh/react@^19.2.1/",
-    "lucide-react": "https://esm.sh/lucide-react@^0.556.0"
-  }
-}
-</script>
-</head>
+  </head>
   <body>
     <div id="root"></div>
   <script type="module" src="/index.tsx"></script>

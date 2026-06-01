@@ -1,17 +1,7 @@
-/**
- * @license
- * SPDX-License-Identifier: Apache-2.0
-*/
+import type { FC } from 'react';
 
-import React from 'react';
 import HandTrackingDemo from './components/HandTrackingDemo';
 
-const App: React.FC = () => {
-  return (
-    <div className="w-full h-full">
-      <HandTrackingDemo />
-    </div>
-  );
-};
+const App: FC = () => <HandTrackingDemo />;
 
 export default App;

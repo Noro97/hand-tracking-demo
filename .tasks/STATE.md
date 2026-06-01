@@ -5,17 +5,19 @@
 ## Стек
 - **Сборщик:** Vite 6 + @vitejs/plugin-react
 - **Язык:** TypeScript ~5.8
-- **UI:** React 19, Tailwind CSS (через CDN), lucide-react (иконки)
-- **CV/ML:** @mediapipe/hands 0.4.1646424915 + camera_utils 0.3.1640029074 + drawing_utils 0.3.1620248257 — обслуживаются локально из `public/mediapipe/`
-- **AI:** удалён (задача 002). Все упоминания `@google/genai`, `getStrategicHint`, `API_KEY` вычищены.
+- **UI:** React 19 (+ `@types/react`, `@types/react-dom`), **Tailwind CSS v4 (локальная сборка через `@tailwindcss/vite`) с centralized palette в `index.css` `@theme`**, lucide-react (иконки)
+- **CV/ML:** @mediapipe/hands 0.4.1646424915 + camera_utils 0.3.1640029074 + drawing_utils 0.3.1620248257 — обслуживаются локально из `public/mediapipe/` (артефакты регенерируются `scripts/copy-mediapipe.mjs` через `postinstall`)
+- **AI:** удалён (задача 002).
 - **Тесты:** не настроены
 - **Линтер:** не настроен
+- **Git:** инициализирован, первичный коммит `f6d9617` создан в задаче 007.
 
 ## Команды
 - Сборка: `npm run build`
 - Запуск dev: `npm run dev` (Vite, порт 3000)
 - Превью сборки: `npm run preview`
 - Type-check: `npx tsc --noEmit`
+- Регенерация MediaPipe-артефактов: `npm run postinstall` (или `node scripts/copy-mediapipe.mjs`)
 - Тесты: n/a
 - Линт: n/a
 
@@ -28,23 +30,29 @@
 - [ ] Dev-сервер открывает приложение без ошибок в консоли, кроме ожидаемого `NotAllowedError: Permission denied` от камеры в headless-окружении
 
 ## Текущий фокус
-Рефактор Gemini Slingshot → Hand Tracking Demo завершён (задачи 001–003). Стратегический бриф по применениям технологии написан (задача 004) и лежит в `docs/STRATEGY.md`. На следующем шаге — решение о направлении коммерциализации: либо двигаться по рекомендованному в `docs/STRATEGY.md` пути (MVP medtech-реабилитации за 8 недель), либо параллельно отполировать сам hand-tracking демо для презентации, либо переименовать пакет/репозиторий и подготовить к публичному релизу. Решение за пользователем.
+Полный code-quality рефактор завершён (задача 011): strict TypeScript + noUncheckedIndexedAccess, модульная структура (`lib/filters.ts`, `lib/colors.ts`, `hooks/useHandTracking.ts`), узкие типы для MediaPipe, theme-палитра, удалён весь шаблонный мусор от AI Studio. `HandTrackingDemo.tsx` ужат с 335 до 109 строк. Working tree содержит обширные uncommitted изменения после initial commit `f6d9617`. Следующий шаг — за пользователем: либо follow-up commit на текущее состояние, либо medtech-MVP по плану §7 STRATEGY.md, либо подготовка к публичному релизу.
 
 ## Заблокировано
 Нет блокировок.
 
 ## Реестр технического долга
-- Имя пакета и папки `gemini-slingshot` перестало соответствовать содержимому. Имя осталось в `package.json`, `package-lock.json`, `.claude/launch.json`. Переименование — отдельная задача, не делалось во избежание расползания scope.
-- Tailwind подключается через `cdn.tailwindcss.com` — продакшен-предупреждение в консоли. При выходе в продакшен — переезд на PostCSS-плагин.
-- `public/mediapipe/` содержит ~50 МБ бинарных артефактов MediaPipe (`.wasm`, `.data`, `.tflite`). Сейчас коммитится в git. Альтернатива — `.gitignore` + postinstall-скрипт, копирующий из `node_modules/@mediapipe/*` в `public/mediapipe/`. Решение отложено.
-- В `package.json` нет скриптов `lint`, `test`, `typecheck` — DoD опирается на ручной вызов `tsc --noEmit` и `vite build`.
-- `dist/` остаётся после `npm run build`; в `.gitignore` уже исключён.
+- **Директория `projects/gemini-slingshot/`** всё ещё несёт legacy-имя (npm-пакет уже переименован в задаче 006). Переименование директории — отдельная задача с учётом ссылок в workspace `.claude/launch.json` и любых внешних шорткатов.
+- **Workspace `.claude/launch.json`** содержит entry `"name": "gemini-slingshot"` с `--prefix projects/gemini-slingshot` — синхронизировать с переименованием директории.
+- **Tests / Lint** не настроены — DoD опирается на ручной вызов `tsc --noEmit` и `vite build`. Если проект пойдёт в продакшен — настроить Vitest + ESLint.
+- **`.gitattributes`** не настроен; на Windows git предупреждает о LF→CRLF на каждом `add`. Не критично, но для команды с разными ОС — поставить `* text=auto eol=lf`.
+- **README может расти** — сейчас минимальный, после первого внешнего showcase'а потребует скриншотов / GIF'а / описания жестов.
 
 ## Решения
 <!-- новые сверху: дата, одна строка -->
-### 2026-05-29 — Стратегическое направление коммерциализации: рекомендован вертикальный B2B SaaS для medtech-реабилитации кисти (`docs/STRATEGY.md`, раздел 8). Альтернативные направления (AAC, industrial HMI) — расширение после PMF.
-### 2026-05-29 — `git init` инициализирован в корне проекта; первичный коммит ещё не делался — ждёт явной команды.
-### 2026-05-29 — Имя пакета `gemini-slingshot` не переименовываем (вне scope сессии), фиксируем техдолгом.
+### 2026-05-29 — Code-quality refactor: strict TS, модульная структура (`lib/`, `hooks/`), узкие MediaPipe-типы, theme-палитра, удалён шаблонный мусор. `HandTrackingDemo.tsx` 335 → 109 строк.
+### 2026-05-29 — `docs/STRATEGY.md` расширен (287 → 402 строки): market sizing, sterile-OR как 4.1b, complementary monetization streams. Источник — внешний `.docx` от пользователя, оставлен на десктопе (не в репо).
+### 2026-05-29 — Алгоритмические фильтры hand-tracking (One Euro + hysteresis + Z-нормализация) реализованы в `HandTrackingDemo.tsx`. Все tunable-константы наверху файла. Reset-семантика при потере руки в кадре.
+### 2026-05-29 — Tailwind v4 через `@tailwindcss/vite` плагин, без `tailwind.config.js` и `postcss.config.js`. `font-roboto` определён через `@theme` в `index.css`.
+### 2026-05-29 — Первый git commit (`f6d9617`) включает 25 файлов; `public/mediapipe/` корректно скрыт `.gitignore`.
+### 2026-05-29 — npm-пакет переименован в `hand-tracking-demo`; директория и workspace-конфиг preview оставлены как есть (отдельный риск).
+### 2026-05-29 — MediaPipe-артефакты регенерируются через `postinstall`, в git не коммитятся. Реальный размер: 23.8 МБ (а не «50», как было ранее в STATE).
+### 2026-05-29 — Стратегическое направление коммерциализации: рекомендован вертикальный B2B SaaS для medtech-реабилитации кисти (`docs/STRATEGY.md`, раздел 8).
+### 2026-05-29 — Имя пакета `gemini-slingshot` не переименовываем (вне scope сессии 1), фиксируем техдолгом. *(Решено в сессии 2, задача 006.)*
 ### 2026-05-29 — Артефакты задач, RETRO и стратегический бриф пишутся на русском; технические идентификаторы в коде — на английском.
 ### 2026-05-29 — `.tasks/` коммитится в git как часть истории репозитория.
 ### 2026-05-29 — Стратегический бриф размещается в `docs/STRATEGY.md`.

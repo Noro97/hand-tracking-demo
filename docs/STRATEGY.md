@@ -19,6 +19,7 @@
 - 2D-проекция landmarks с приблизительной z-координатой (без честной depth).
 - Распознавание базовых жестов (pinch, ладонь, кулак — derived).
 - Браузерная переносимость: Chrome, Edge, Safari, Firefox.
+- **Production-grade фильтрация входного сигнала** (реализовано в задаче 009): One Euro Filter для сглаживания координат pointer'а; pinch-state с hysteresis (двусторонние пороги) + temporal debounce 150 мс; Z-axis нормализация pinch threshold через `handSize` — жест работает на любой дистанции от камеры.
 
 ### Ограничения, которые формируют рынок
 - **Освещение и видимость.** Требуется приемлемое освещение и рука в кадре — отсекает темные помещения, скрытые/перчаточные сценарии частично.
@@ -37,6 +38,23 @@
 | **MediaPipe Tasks (web)** | Open-source | Свежее API, тот же бэкенд | То же — низкий технологический moat |
 
 **Вывод:** **moat не в технологии**. Сама способность отслеживать руку — коммодити. Защищенность бизнеса создаётся либо клиническими данными и регуляторными разрешениями (medtech), либо доменной экспертизой и distribution (вертикальный B2B), либо UX-полировкой под конкретный workflow (нишевый SaaS).
+
+### Рынок gesture recognition: размер и динамика
+
+Цифры из открытых отраслевых исследований (Persistence Market Research, Grand View Research, GMI Insights, Fortune Business Insights, Market.us Scoop — см. раздел «Источники»). Включают touch-based + touchless сегменты; touchless растёт быстрее.
+
+| Период | Размер рынка | Сегмент touchless |
+|---|---|---|
+| 2024 (факт) | $25.4 млрд | $14.5 млрд |
+| 2025 (текущая оценка) | $29.8–31.0 млрд | $14.5 млрд |
+| 2026 (прогноз) | $36.7–39.7 млрд | $17.3 млрд |
+| 2030–2035 (baseline) | $70–106 млрд | $34.5–48.9 млрд (к 2032) |
+| 2035 (aggressive) | до $251.5 млрд | — |
+| CAGR | 18.1–26.2% | >25% (быстрее общего) |
+
+Регионально: North America — 36–37% global share ($11.3 млрд в 2025), Europe — 22% (доминирует благодаря GDPR/EU AI Act, которые поощряют on-device обработку и penalize cloud-биометрию).
+
+**Что это означает для нас:** рынок большой и растёт быстро, но **выбор вертикали важнее размера рынка**. SAM (платящий сегмент) в каждой конкретной вертикали — 5–10% от global figure; решающим становится **то, какая часть SAM реалистично доступна стартапу без incumbent-партнёрств**.
 
 ---
 
@@ -69,7 +87,7 @@
 
 ## 4. Шорт-лист (4 направления с разбором)
 
-### 4.1 Medtech-реабилитация кисти
+### 4.1a Medtech-реабилитация кисти (primary MVP)
 
 **Проблема.** После инсульта, при Parkinson'е или после операции на кисти пациент дома не имеет инструментов объективно измерять прогресс мелкой моторики. PT/OT-клиницист видит больного раз в неделю и опирается на subjective recall пациента. Re-hospitalization из-за слишком поздно скорректированной терапии — крупная статья расходов для страховщиков.
 
@@ -100,6 +118,53 @@
 - Интеграция с EHR (Epic, Cerner) обязательна для enterprise — длинный sales-цикл.
 
 **Defensibility.** **Высокая.** Clinical evidence + регуляторное разрешение + EHR-интеграции + сеть KOL'ов не воспроизводится за квартал и создают серьёзный barrier to entry.
+
+---
+
+### 4.1b Medtech-стерильная операционная (secondary expansion)
+
+**Проблема.** Во время хирургии хирург должен манипулировать радиологическими изображениями (MRI, CT-реконструкции), регулировать освещение, отключать тревожные сигналы — но любой контакт с экраном или мышью **ломает стерильное поле**. Альтернативы: прерывать операцию, переодеваться и снова мыться (минуты дорогого OR-времени, риск осложнений), либо командовать ассистенту через речь (источник коммуникационных ошибок). Hospital-acquired infections (HAI) — финансово ощутимая для госпиталя проблема.
+
+**Пользователи.**
+- *Платят:* hospital networks, OEM-интеграторы медицинского ПО (Brainlab, Stryker, GE Healthcare для имиджинга), PACS-вендоры.
+- *Используют ежедневно:* хирурги в OR; косвенно — анестезиологи, операционные сёстры.
+
+**Ценность.**
+- «Sterile browsing» паттерн: хирург управляет DICOM-изображениями (rotate 3D CT, drag image slice, silence alarm) gesture'ами в воздухе, не нарушая стерильность.
+- Уменьшение времени операции и потерянного OR-времени.
+- Снижение HAI-расходов (по клиническим публикациям, контакт с консолью — известный вектор инфекций).
+- Документированные usability-метрики из ОР-пилотов: surgeons rate freehand control выше touch panel'а по ergonomics и intuitive reaction time.
+
+**Конкуренты.**
+- *Премиум-сегмент:* Ultraleap (де-факто стандарт для медицины, но требует $250+ депт-сенсор), TedCas (medical-focused).
+- *Голосовое управление:* Vocera, Theator (другой modality, не конкурент по жестам напрямую).
+- *Webcam-only:* почти пусто — регуляторное окно открыто, но узкое.
+
+**Монетизация.**
+- B2B-лицензирование per-OR-room: **$10K–50K/OR/год** (значительно выше rehab за счёт стоимости проблемы и платёжеспособности hospital networks).
+- OEM-deals с PACS- и имиджинг-вендорами: revenue share или прямая лицензия SDK.
+- Hardware bundling — премиум-вариант для standalone sterile-control kit.
+
+**Риски.**
+- **FDA SaMD Class II** обязателен (выше класс ответственности, чем у rehab-приложения). Длинный путь 18–36 мес, дороже $400K–1M.
+- ISO 13485 (QMS для медицинских устройств) — отдельный compliance-трек.
+- Длинные циклы продаж: hospital procurement + IT + risk management + clinical chief — 12–18 мес после регуляторного approval.
+- Конкуренция с Ultraleap, у которого уже есть OEM-отношения с топ-вендорами.
+
+**Defensibility.** **Очень высокая.** FDA Class II + ISO 13485 + клинические данные из реальных OR-пилотов — создают серьёзнейший moat. Но capex выше, и время до первого dollar'а дольше.
+
+### Trade-off rehab vs sterile-OR внутри medtech-вертикали
+
+| | 4.1a Rehab | 4.1b Sterile-OR |
+|---|---|---|
+| Регуляторика | FDA SaMD II (медицинское ПО), но «software-only» путь | FDA SaMD II + ISO 13485 + клиническая evidence в OR-сценарии |
+| Time-to-revenue | 12–18 мес до первого LOI; 18–24 до повторных контрактов | 24–36 мес минимум |
+| Average Contract Value | $400–$2K/мес/клиника | $10K–$50K/OR/год — на порядок выше |
+| Capex до первого dollar'а | $200K–500K (clinical study + 510(k)) | $400K–1M+ (Class II + ISO + OR-pilot) |
+| Sales-цикл | 3–6 мес (clinic-level decision) | 12–18 мес (hospital + IT + clinical chief) |
+| Подходит как первый ход | **Да** (faster TTR, ниже capex) | Нет (требует капитала + времени) |
+
+**Рекомендованная последовательность:** rehab как **первый ход** (MVP за 8 недель, см. раздел 7), sterile-OR — как **расширение после accumulated PMF и капитала** в medtech (год 2–3). Регуляторные знания, EHR-интеграции и hospital-relationships из rehab-этапа напрямую переиспользуются в OR-этапе.
 
 ---
 
@@ -211,10 +276,11 @@
 
 | Направление | SAM (US+EU) | Регуляторика | TTR | Defensibility | Стек-fit |
 |---|---|---|---|---|---|
-| **Medtech-rehab** | $1.5–3 млрд | Высокая (FDA SaMD II) | 18–24 мес | **Высокая** | Высокий |
-| **AAC / Accessibility** | $0.5–1 млрд | Средняя (FDA I + Medicaid) | 12–18 мес | **Высокая** | Высокий |
-| **Touchless-киоски** | $0.3–0.8 млрд | Минимальная | 6–12 мес | Низкая | Высокий |
-| **Industrial HMI** | $0.5–1.5 млрд | Очень высокая | 18–36 мес | Средняя | Средний (нужны depth-сценарии) |
+| **Medtech-rehab (4.1a)** | $1.5–3 млрд | Высокая (FDA SaMD II) | 12–18 мес | **Высокая** | Высокий |
+| **Medtech-sterile-OR (4.1b)** | $2–5 млрд | Очень высокая (SaMD II + ISO 13485) | 24–36 мес | **Очень высокая** | Высокий |
+| **AAC / Accessibility (4.2)** | $0.5–1 млрд | Средняя (FDA I + Medicaid) | 12–18 мес | **Высокая** | Высокий |
+| **Touchless-киоски (4.3)** | $0.3–0.8 млрд | Минимальная | 6–12 мес | Низкая | Высокий |
+| **Industrial HMI (4.4)** | $0.5–1.5 млрд | Очень высокая | 18–36 мес | Средняя | Средний (нужны depth-сценарии) |
 
 ---
 
@@ -236,17 +302,34 @@
 - **Долгосрочная цель:** pay-per-session с CPT-reimbursement (97161–97163 + modifier 95 для telehealth).
 - **Add-ons (после PMF):** интеграция с EHR ($5K–15K setup), white-label для крупных hospital networks.
 
-### Альтернатива на случай pivot
+### Дополняющие модели (после PMF в SaaS)
 
-**Горизонтальный SDK/API для разработчиков** (`npm install @<brand>/hand-tracking`):
-- Pretty-API поверх MediaPipe + готовые жесты + analytics.
-- Free tier 10K вызовов/мес, $99/мес pro, enterprise по запросу.
+Стратегия НЕ обязана быть моно-направленной. После того как primary SaaS-вертикаль валидирована (≥1 LOI на $99/мес/клиницист, см. MVP-план в §7), можно открывать **complementary revenue streams**, которые не конкурируют с основным фокусом, а используют тот же код-base:
 
-**Когда переключаться:** если первые 6 месяцев medtech CDD (clinical due diligence) не показывают clinician willingness-to-pay → конвертируйте накопленный код в DX-инструмент. Риск: повторяет path Cohere/OpenAI vs free-tier MediaPipe — низкая маржа, ценовая война.
+1. **Horizontal SDK/API лицензирование** (`@<brand>/hand-tracking` npm-пакет + commercial license).
+   - *Кому продаём:* kiosk fabricators (per-device royalty), AAC ISV'ы (per-seat license), retail-интеграторы.
+   - *Pricing:* free dev tier 10K вызовов/мес; commercial license от $99/мес pro до $30K+/год enterprise; per-device royalty $20–50 для bundled-deployments.
+   - *Почему работает:* основной код всё равно нужен в SaaS-продукте; SDK — это просто его «экспорт» с другой обёрткой и контрактом. Маржа высокая (нулевой COGS на дополнительный install).
+   - *Прецеденты:* Ultraleap, ManoMotion — оба зарабатывают именно так.
+
+2. **Hardware bundling (Value-Added Reseller) для sterile-OR-сценария.**
+   - *Кому продаём:* PACS-вендорам / OR-интеграторам как pre-installed sterile-control kit.
+   - *Pricing:* revenue share или fixed margin на bundled-kit ($2K–5K премиум к baseline kiosk/OR-консоли).
+   - *Активируется* только после FDA Class II approval по сценарию 4.1b — то есть год 2–3, не сразу.
+
+3. **Posture Guardian / ergonomic-compliance** как **enterprise add-on**.
+   - Расширение hand-pose → upper-body pose (33 landmark MediaPipe Pose).
+   - *Кому продаём:* corporate HR / IT-департаментам как PWA для ремоутных сотрудников.
+   - *Pricing:* $5–10/сотрудник/мес.
+   - **Низкий приоритет** — отдельный go-to-market и user research; ставить только после PMF в medtech.
+
+### Альтернатива (план Б, только при провале основной модели)
+
+Если первые 6 месяцев medtech CDD не показывают clinician willingness-to-pay → **полностью пивотировать в горизонтальный SDK как primary**. Риск: повторяет path Cohere/OpenAI vs free-tier MediaPipe — низкая маржа, ценовая война, требует огромного top-of-funnel'а DevRel-маркетинга. Менее предпочтительно, но реалистично как exit-стратегия.
 
 ### От чего **отказались**
 
-- **Touchless-киоски** — низкая defensibility, бизнес коммодити-сервиса, маржа сжимается интеграторами, gesture-fatigue ломает UX.
+- **Touchless-киоски** — низкая defensibility, бизнес коммодити-сервиса, маржа сжимается интеграторами, gesture-fatigue ломает UX. *Внешний аналитический документ (см. §9) ставит это направление #2 в своём ранжировании; мы остаёмся при позиции отказа: их аргумент про hygiene-driver справедлив, но defensibility-проблема не решается размером рынка.*
 - **AR try-on украшений** — fastline, но Modiface и Sephora уже там; защищенность нулевая.
 
 ---
@@ -282,6 +365,38 @@
 
 ## 8. Заключение
 
-**Рекомендация:** строить **вертикальный B2B SaaS для medtech-реабилитации кисти** как первое направление коммерциализации; защищать клиническими данными и EHR-интеграциями. Альтернативные направления (AAC, industrial HMI) держать как опции горизонтального расширения после PMF в первой вертикали. От touchless-киосков и AR try-on **отказаться**: низкая defensibility превращает их в ловушку для команды, а не в бизнес.
+**Рекомендация:** строить **вертикальный B2B SaaS для medtech-реабилитации кисти (4.1a)** как первое направление коммерциализации; защищать клиническими данными и EHR-интеграциями. Sterile-OR (4.1b) — расширение через 18–24 мес после первого PMF, на том же FDA/ISO-фундаменте. Complementary revenue streams (horizontal SDK, hardware bundling, ergonomic add-on) — после доказанной основной вертикали. От touchless-киосков и AR try-on **отказаться**: низкая defensibility превращает их в ловушку.
 
-Если первые 8 недель MVP не подтверждают clinician willingness-to-pay — пивот в горизонтальный SDK/API, но это план Б, а не первый ход.
+Если первые 8 недель MVP не подтверждают clinician willingness-to-pay — пивот в горизонтальный SDK/API как primary, но это план Б, а не первый ход.
+
+---
+
+## 9. Источники / внешние материалы
+
+### Внешний аналитический документ
+- **«Commercializing Camera-Based Hand Tracking Technology: Exhaustive Market Analysis, Application Paradigms, and Strategic Business Models»** — внешний материал, предоставленный пользователем (~7000 слов). Использован как input для разделов 1 (market sizing), 4.1b (sterile-OR), 6 (расширенная модель монетизации). Расхождения с моими выводами явно зафиксированы в разделе «что не вошло» и trade-off таблице 4.1a vs 4.1b. Локально на машине пользователя: `Interactive Hand Logic App Ideas.docx`.
+
+### Рыночные исследования, упомянутые во внешнем документе
+- Persistence Market Research — gesture recognition & touchless sensing market.
+- Grand View Research — gesture recognition global market outlook 2025–2030.
+- Fortune Business Insights — gesture recognition market share report.
+- GMI Insights — industry analysis 2035.
+- MarketsandMarkets — North America gesture recognition 2025–2032.
+- Market.us Scoop — gesture recognition statistics 2026.
+
+### Цитированные конкуренты и продукты
+- **Ultraleap** — спец. depth-сенсор $250+, OEM-стандарт для медицины/премиум-AR.
+- **ManoMotion** — mobile-focused hand-tracking SDK, лицензионная модель.
+- **Hocoma / Bioness / Tyromotion** — премиум rehab-системы $50K+ с собственным железом.
+- **Neofect Smart Glove (~$500)** — потребительский rehab-контроллер.
+- **MIRA Rehab / MotusVR** — VR-based rehab.
+- **GlassOuse** — head-tracker для accessibility ($599–799).
+- **Tobii Dynavox / TD Snap / LAMP Words for Life** — AAC-инструменты ($10K+).
+- **Enable Viacam (eViacam) / SensePilot / Camera Mouse** — webcam-based assistive software.
+- **Brainlab / Stryker / GE Healthcare** — PACS- и imaging-вендоры (потенциальные OEM-партнёры для 4.1b).
+- **Modiface (L'Oréal) / Sephora Virtual Artist** — AR try-on incumbent.
+
+### Что было использовано в реализации проекта (не только в документе)
+- **One Euro Filter** — G. Casiez, N. Roussel, D. Vogel (CHI 2012, «1€ Filter»). Реализован в задаче 009.
+- **Box-and-Block Test (BBT)** — стандартизированная клиническая assessment мелкой моторики кисти. Используется в MVP-плане §7.
+- **CPT-коды PT 97161–97163 + modifier 95** — Medicare reimbursement-схема для telerehab. Используется в pricing-модели §6.
