@@ -10,7 +10,7 @@
 - **AI:** удалён (задача 002).
 - **Тесты:** не настроены
 - **Линтер:** не настроен
-- **Git:** инициализирован, первичный коммит `f6d9617` создан в задаче 007.
+- **Git:** инициализирован, 2 коммита (`f6d9617` initial + `a1a0d20` post-refactor), запушены в `origin/master` (https://github.com/Noro97/hand-tracking-demo, public).
 
 ## Команды
 - Сборка: `npm run build`
@@ -30,7 +30,7 @@
 - [ ] Dev-сервер открывает приложение без ошибок в консоли, кроме ожидаемого `NotAllowedError: Permission denied` от камеры в headless-окружении
 
 ## Текущий фокус
-Полный code-quality рефактор завершён (задача 011): strict TypeScript + noUncheckedIndexedAccess, модульная структура (`lib/filters.ts`, `lib/colors.ts`, `hooks/useHandTracking.ts`), узкие типы для MediaPipe, theme-палитра, удалён весь шаблонный мусор от AI Studio. `HandTrackingDemo.tsx` ужат с 335 до 109 строк. Working tree содержит обширные uncommitted изменения после initial commit `f6d9617`. Следующий шаг — за пользователем: либо follow-up commit на текущее состояние, либо medtech-MVP по плану §7 STRATEGY.md, либо подготовка к публичному релизу.
+Проект на публичном GitHub: https://github.com/Noro97/hand-tracking-demo. 2 коммита запушены, working tree чистый (после третьего коммита, который добавит этот апдейт). Базовая инфраструктура, hand-tracking демо, strict-typed модульная структура, стратегический бриф — всё в репо. Следующий шаг — за пользователем: либо medtech-MVP по плану §7 STRATEGY.md, либо подготовка к расширению (rename директории, `main` вместо `master`, `.gitattributes`, tests/lint setup), либо новая вертикаль.
 
 ## Заблокировано
 Нет блокировок.
@@ -44,6 +44,7 @@
 
 ## Решения
 <!-- новые сверху: дата, одна строка -->
+### 2026-05-29 — Публичный GitHub-репо `Noro97/hand-tracking-demo` создан и запушен; default branch `master` (Windows-git дефолт), не `main` — миграция при желании отдельной задачей.
 ### 2026-05-29 — Code-quality refactor: strict TS, модульная структура (`lib/`, `hooks/`), узкие MediaPipe-типы, theme-палитра, удалён шаблонный мусор. `HandTrackingDemo.tsx` 335 → 109 строк.
 ### 2026-05-29 — `docs/STRATEGY.md` расширен (287 → 402 строки): market sizing, sterile-OR как 4.1b, complementary monetization streams. Источник — внешний `.docx` от пользователя, оставлен на десктопе (не в репо).
 ### 2026-05-29 — Алгоритмические фильтры hand-tracking (One Euro + hysteresis + Z-нормализация) реализованы в `HandTrackingDemo.tsx`. Все tunable-константы наверху файла. Reset-семантика при потере руки в кадре.

@@ -11,6 +11,10 @@
 ## Уроки
 <!-- новые сверху -->
 
+### 2026-05-29 — `gh repo create --source=. --remote=origin --push` за один шаг
+**From:** задача 012 (rated 5/5)
+**Lesson:** Когда нужно создать remote-репозиторий из локального проекта — `gh repo create <user>/<name> --public --source=. --remote=origin --push --description="..."` делает всё атомарно: создаёт репо на GitHub, добавляет remote, привязывает branch tracking, пушит. Альтернатива (`gh repo create` без `--source`, потом `git remote add`, потом `git push -u origin master`) — три раздельных шага, каждый из которых может тихо упасть.
+
 ### 2026-05-29 — Strict TypeScript — это fix-cascade, не точечная правка
 **From:** задача 011 (rated 5/5)
 **Lesson:** Включение `strict: true` (и тем более `noUncheckedIndexedAccess`) в проекте, где их не было с начала, **никогда не получится сделать одной строкой в `tsconfig.json`**. Surface'тся: отсутствующие `@types/*` пакеты (которые маскировались `skipLibCheck`), implicit `any` в callback'ах, доступы к массивам без guards, `useRef<T>(null)` сигнатуры в strict-режиме. Реалистичная оценка: 5–15 точек правок на средний проект. Включать strict нужно **вместе с готовностью разгрести cascade одним проходом**, а не «попробуем включить».
