@@ -18,9 +18,9 @@ export interface BBTSession {
 }
 
 /**
- * Thin React adapter over {@link BBTSessionController}, following the same
- * pattern as {@link useHandInteractions}: the controller owns state and side
- * effects, this hook just wires it to React and to a UI-rate countdown timer.
+ * Thin React adapter over {@link BBTSessionController}: the controller owns
+ * state and side effects, this hook just wires it to React and to a UI-rate
+ * countdown timer.
  */
 export function useBBTSession(canvasRef: RefObject<HTMLCanvasElement | null>): BBTSession {
   const controllerRef = useRef<BBTSessionController | null>(null);
