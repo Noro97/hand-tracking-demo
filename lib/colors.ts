@@ -34,7 +34,3 @@ export const HAND_COLOR: Record<Handedness, string> = {
 export const POINTER_RADIUS_IDLE = 20;
 export const POINTER_RADIUS_PINCH = 28;
 export const POINTER_DOT_RADIUS = 6;
-
-// Brush palette and stroke widths cycled by the drawing actions.
-export const BRUSH_COLORS = ['#ef5350', '#fdd835', '#66bb6a', '#42a5f5', '#ffffff'] as const;
-export const BRUSH_SIZES = [4, 8, 16, 28] as const;

@@ -1,5 +1,4 @@
 import { COLORS, HAND_COLOR, POINTER_DOT_RADIUS, POINTER_RADIUS_IDLE, POINTER_RADIUS_PINCH } from '../lib/colors';
-import { effectToFilter, type EffectId } from '../lib/effects';
 import { HandRecognizer, type HandObservation, type Handedness } from '../lib/recognition';
 import type { CameraInstance, HandsInstance, HandsResults } from '../types';
 
@@ -15,8 +14,6 @@ export interface HandEngineCallbacks {
   onFrame?: (state: HandEngineState) => void;
   onGestureStart?: (handedness: Handedness, gestureId: string) => void;
   onGestureEnd?: (handedness: Handedness, gestureId: string) => void;
-  /** Video filter to apply to the live frame this render. */
-  getEffect?: () => EffectId;
 }
 
 const HUD_UPDATE_INTERVAL_MS = 100;
@@ -123,13 +120,9 @@ export class HandEngine {
     const { ctx, canvas } = this;
     const now = performance.now();
 
-    const effect = this.callbacks.getEffect?.() ?? 'none';
-
     ctx.save();
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.filter = effectToFilter(effect);
     ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
-    ctx.filter = 'none';
     ctx.fillStyle = COLORS.videoOverlay;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 

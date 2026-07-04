@@ -18,17 +18,10 @@ export interface GestureDef {
 }
 
 /**
- * Thumb tip touching each other fingertip. Four gestures per hand; the action
- * layer (lib/actions.ts) binds each to a Left/Right-specific command.
- * Thresholds are shared from the tuned pinch constants and are per-gesture
- * overridable here if ring/pinky need loosening on a given camera.
+ * Thumb tip touching the index fingertip — the one gesture the BBT
+ * measurement loop (`features/bbtSession.ts`) reacts to as a "grab".
  */
-export const GESTURES: GestureDef[] = [
-  gesture('thumb-index', 'Index', LM.INDEX_TIP),
-  gesture('thumb-middle', 'Middle', LM.MIDDLE_TIP),
-  gesture('thumb-ring', 'Ring', LM.RING_TIP),
-  gesture('thumb-pinky', 'Pinky', LM.PINKY_TIP),
-];
+export const GESTURES: GestureDef[] = [gesture('thumb-index', 'Index', LM.INDEX_TIP)];
 
 function gesture(id: string, label: string, fingerTip: number): GestureDef {
   return {
