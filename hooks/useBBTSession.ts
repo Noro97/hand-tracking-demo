@@ -9,7 +9,7 @@ const TICK_INTERVAL_MS = 250;
 
 export interface BBTSession {
   state: BBTSessionState;
-  start: (durationMs?: number) => void;
+  start: (selectedHand: Handedness, durationMs?: number) => void;
   stop: () => BBTSessionSummary;
   exportJson: () => void;
   onGestureStart: (handedness: Handedness, gestureId: string) => void;
@@ -40,7 +40,10 @@ export function useBBTSession(canvasRef: RefObject<HTMLCanvasElement | null>): B
     return () => window.clearInterval(id);
   }, [controller]);
 
-  const start = useCallback((durationMs?: number) => controller.start(durationMs), [controller]);
+  const start = useCallback(
+    (selectedHand: Handedness, durationMs?: number) => controller.start(selectedHand, durationMs),
+    [controller],
+  );
   const stop = useCallback(() => controller.stop(), [controller]);
   const exportJson = useCallback(() => controller.exportJson(), [controller]);
   const onGestureStart = useCallback(

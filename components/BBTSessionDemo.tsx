@@ -5,17 +5,20 @@ import { Download, Play, Square, Timer } from 'lucide-react';
 import { useHandTracking } from '../hooks/useHandTracking';
 import { useBBTSession } from '../hooks/useBBTSession';
 import type { BBTRep } from '../features/bbtSession';
+import type { Handedness } from '../lib/recognition';
 import LoadingOverlay from './LoadingOverlay';
 import MobileBlocker from './MobileBlocker';
 
 const DURATION_OPTIONS_MS = [30_000, 60_000, 120_000] as const;
 const DEFAULT_DURATION_MS: (typeof DURATION_OPTIONS_MS)[number] = 60_000;
+const HAND_OPTIONS: Handedness[] = ['Left', 'Right'];
 
 const BBTSessionDemo: FC = () => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [durationMs, setDurationMs] = useState<(typeof DURATION_OPTIONS_MS)[number]>(DEFAULT_DURATION_MS);
+  const [pendingHand, setPendingHand] = useState<Handedness>('Left');
 
   const session = useBBTSession(canvasRef);
   const { loading } = useHandTracking(videoRef, canvasRef, containerRef, {
@@ -39,6 +42,7 @@ const BBTSessionDemo: FC = () => {
 
         <SessionHud
           running={session.state.running}
+          selectedHand={session.state.selectedHand}
           remainingMs={session.state.remainingMs}
           blockCount={session.state.blockCount}
           lastRep={session.state.lastRep}
@@ -49,7 +53,9 @@ const BBTSessionDemo: FC = () => {
           hasResults={hasResults}
           durationMs={durationMs}
           onDurationChange={setDurationMs}
-          onStart={() => session.start(durationMs)}
+          pendingHand={pendingHand}
+          onHandChange={setPendingHand}
+          onStart={() => session.start(pendingHand, durationMs)}
           onStop={() => session.stop()}
           onExport={() => session.exportJson()}
         />
@@ -57,8 +63,8 @@ const BBTSessionDemo: FC = () => {
         <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-40 max-w-[90vw]">
           <div className="bg-surface/90 px-6 py-3 rounded-full border border-border backdrop-blur-sm">
             <p className="text-sm text-text-primary text-center">
-              Pinch thumb + index on one side of the line, carry across, release on the other side — each crossing
-              counts as one block.
+              Pick the hand under test, then pinch thumb + index on one side of the line, carry across, and release
+              on the other side — each crossing counts as one block. Only the selected hand is tracked.
             </p>
           </div>
         </div>
@@ -83,10 +89,11 @@ const PartitionLine: FC = () => (
 
 const SessionHud: FC<{
   running: boolean;
+  selectedHand: Handedness | null;
   remainingMs: number;
   blockCount: number;
   lastRep: BBTRep | null;
-}> = ({ running, remainingMs, blockCount, lastRep }) => (
+}> = ({ running, selectedHand, remainingMs, blockCount, lastRep }) => (
   <div className="absolute top-6 left-6 z-40 flex flex-col gap-3">
     <div className="bg-surface p-4 rounded-[24px] border border-border shadow-2xl min-w-[260px]">
       <div className="flex items-center gap-3 mb-3">
@@ -94,7 +101,9 @@ const SessionHud: FC<{
           <Timer className={`w-5 h-5 ${running ? 'text-accent-green' : 'text-text-dim'}`} />
         </div>
         <div>
-          <p className="text-xs text-text-muted uppercase tracking-wider font-medium">Time remaining</p>
+          <p className="text-xs text-text-muted uppercase tracking-wider font-medium">
+            {selectedHand ? `${selectedHand} hand · Time remaining` : 'Time remaining'}
+          </p>
           <p className="text-2xl font-bold font-mono">{formatClock(remainingMs)}</p>
         </div>
       </div>
@@ -103,7 +112,7 @@ const SessionHud: FC<{
 
     {lastRep && (
       <div className="bg-surface p-4 rounded-[24px] border border-border shadow-2xl min-w-[260px]">
-        <p className="text-xs text-text-muted uppercase tracking-wider font-medium mb-2">Last rep · {lastRep.handedness}</p>
+        <p className="text-xs text-text-muted uppercase tracking-wider font-medium mb-2">Last rep</p>
         <Row label="Duration" value={`${Math.round(lastRep.durationMs)} ms`} />
         <Row label="Smoothness" value={`${Math.round(lastRep.smoothness * 100)}%`} />
         <Row label="Speed" value={`${Math.round(lastRep.speedPxPerSec)} px/s`} />
@@ -124,19 +133,46 @@ const Controls: FC<{
   hasResults: boolean;
   durationMs: number;
   onDurationChange: (ms: (typeof DURATION_OPTIONS_MS)[number]) => void;
+  pendingHand: Handedness;
+  onHandChange: (hand: Handedness) => void;
   onStart: () => void;
   onStop: () => void;
   onExport: () => void;
-}> = ({ running, hasResults, durationMs, onDurationChange, onStart, onStop, onExport }) => (
+}> = ({ running, hasResults, durationMs, onDurationChange, pendingHand, onHandChange, onStart, onStop, onExport }) => (
   <div className="absolute top-6 right-6 z-40">
     <div className="bg-surface p-4 rounded-[24px] border border-border shadow-2xl min-w-[220px] flex flex-col gap-3">
+      <div className="flex items-center justify-between text-sm">
+        <span className="text-text-muted">Hand under test</span>
+        <div className="flex gap-1">
+          {HAND_OPTIONS.map((hand) => (
+            <button
+              key={hand}
+              type="button"
+              disabled={running}
+              onClick={() => onHandChange(hand)}
+              className={`px-2.5 py-1 rounded-lg text-xs font-medium border disabled:opacity-50 ${
+                pendingHand === hand
+                  ? 'bg-accent-blue/20 border-accent-blue text-accent-blue'
+                  : 'bg-border/20 border-border text-text-muted'
+              }`}
+            >
+              {hand}
+            </button>
+          ))}
+        </div>
+      </div>
+
       <label className="flex items-center justify-between text-sm">
         <span className="text-text-muted">Session length</span>
         <select
           className="bg-border/30 border border-border rounded-lg px-2 py-1 text-sm font-mono disabled:opacity-50"
           value={durationMs}
           disabled={running}
-          onChange={(e) => onDurationChange(Number(e.target.value) as (typeof DURATION_OPTIONS_MS)[number])}
+          onChange={(e) => {
+            const parsed = Number(e.target.value);
+            const match = DURATION_OPTIONS_MS.find((ms) => ms === parsed);
+            onDurationChange(match ?? DEFAULT_DURATION_MS);
+          }}
         >
           {DURATION_OPTIONS_MS.map((ms) => (
             <option key={ms} value={ms}>
