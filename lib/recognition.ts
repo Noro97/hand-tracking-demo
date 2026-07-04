@@ -18,6 +18,8 @@ export interface HandObservation {
   pointer: Point;
   /** Active state per gesture id. */
   gestures: Record<string, boolean>;
+  /** Raw hand-size-normalized distance per gesture id, before hysteresis/debounce — diagnostic only. */
+  gestureDistances: Record<string, number>;
   /** Raw landmarks, passed through for rendering. */
   landmarks: NormalizedLandmark[];
 }
@@ -68,6 +70,7 @@ export class HandRecognizer {
     const size = handSize(landmarks);
 
     const gestures: Record<string, boolean> = {};
+    const gestureDistances: Record<string, number> = {};
     for (const g of GESTURES) {
       const a = landmarks[g.fingerA];
       const b = landmarks[g.fingerB];
@@ -77,6 +80,7 @@ export class HandRecognizer {
         continue;
       }
       const rel = size > 1e-6 ? dist(a, b) / size : dist(a, b);
+      gestureDistances[g.id] = rel;
       gestures[g.id] = tracker.update(rel, now);
     }
 
@@ -86,7 +90,7 @@ export class HandRecognizer {
       y: trackers.filterY.filter(raw.y, now),
     };
 
-    return { handedness, pointer, gestures, landmarks };
+    return { handedness, pointer, gestures, gestureDistances, landmarks };
   }
 
   /** Reset filters/trackers for hands not seen in the current frame. */

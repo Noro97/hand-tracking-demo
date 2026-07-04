@@ -1,6 +1,6 @@
 import { RefObject, useCallback, useEffect, useRef, useState } from 'react';
 
-import { BBTSessionController, type BBTSessionState, type BBTSessionSummary } from '../features/bbtSession';
+import { BBTSessionController, type BBTDebugSnapshot, type BBTSessionState, type BBTSessionSummary } from '../features/bbtSession';
 import type { HandEngineState } from '../engine/handEngine';
 import type { Handedness } from '../lib/recognition';
 
@@ -15,6 +15,9 @@ export interface BBTSession {
   onGestureStart: (handedness: Handedness, gestureId: string) => void;
   onGestureEnd: (handedness: Handedness, gestureId: string) => void;
   onFrame: (state: HandEngineState) => void;
+  /** Reads the controller's current internal rep state directly — diagnostic
+   *  only, not piped through React state (see the debug-overlay task notes). */
+  getDebugSnapshot: () => BBTDebugSnapshot | null;
 }
 
 /**
@@ -52,6 +55,7 @@ export function useBBTSession(canvasRef: RefObject<HTMLCanvasElement | null>): B
   );
   const onGestureEnd = useCallback((h: Handedness, g: string) => controller.handleGestureEnd(h, g), [controller]);
   const onFrame = useCallback((s: HandEngineState) => controller.frame(s.hands), [controller]);
+  const getDebugSnapshot = useCallback(() => controller.getDebugSnapshot(), [controller]);
 
-  return { state, start, stop, exportJson, onGestureStart, onGestureEnd, onFrame };
+  return { state, start, stop, exportJson, onGestureStart, onGestureEnd, onFrame, getDebugSnapshot };
 }

@@ -5,7 +5,7 @@ import type { HandObservation, Handedness } from '../lib/recognition';
 const CANVAS_WIDTH = 200; // partition sits at x=100
 
 function hand(handedness: Handedness, x: number, y = 0): HandObservation {
-  return { handedness, pointer: { x, y }, gestures: {}, landmarks: [] };
+  return { handedness, pointer: { x, y }, gestures: {}, gestureDistances: {}, landmarks: [] };
 }
 
 function makeController(): BBTSessionController {

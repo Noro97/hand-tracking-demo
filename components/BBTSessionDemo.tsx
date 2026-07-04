@@ -1,11 +1,11 @@
 import type { FC } from 'react';
 import { useRef, useState } from 'react';
-import { Download, Play, Square, Timer } from 'lucide-react';
+import { Bug, Download, Play, Square, Timer } from 'lucide-react';
 
 import { useHandTracking } from '../hooks/useHandTracking';
 import { useBBTSession } from '../hooks/useBBTSession';
-import type { BBTRep } from '../features/bbtSession';
-import type { Handedness } from '../lib/recognition';
+import type { BBTDebugSnapshot, BBTRep } from '../features/bbtSession';
+import type { HandObservation, Handedness } from '../lib/recognition';
 import LoadingOverlay from './LoadingOverlay';
 import MobileBlocker from './MobileBlocker';
 
@@ -19,9 +19,10 @@ const BBTSessionDemo: FC = () => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [durationMs, setDurationMs] = useState<(typeof DURATION_OPTIONS_MS)[number]>(DEFAULT_DURATION_MS);
   const [pendingHand, setPendingHand] = useState<Handedness>('Left');
+  const [debugOpen, setDebugOpen] = useState(false);
 
   const session = useBBTSession(canvasRef);
-  const { loading } = useHandTracking(videoRef, canvasRef, containerRef, {
+  const { loading, hands } = useHandTracking(videoRef, canvasRef, containerRef, {
     onGestureStart: session.onGestureStart,
     onGestureEnd: session.onGestureEnd,
     onFrame: session.onFrame,
@@ -59,6 +60,21 @@ const BBTSessionDemo: FC = () => {
           onStop={() => session.stop()}
           onExport={() => session.exportJson()}
         />
+
+        <button
+          type="button"
+          onClick={() => setDebugOpen((open) => !open)}
+          className={`absolute bottom-6 left-6 z-40 p-3 rounded-full border shadow-2xl ${
+            debugOpen
+              ? 'bg-accent-blue/20 border-accent-blue text-accent-blue'
+              : 'bg-surface border-border text-text-muted'
+          }`}
+          aria-label="Toggle debug panel"
+        >
+          <Bug className="w-4 h-4" />
+        </button>
+
+        {debugOpen && <DebugPanel hands={hands} debug={session.getDebugSnapshot()} />}
 
         <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-40 max-w-[90vw]">
           <div className="bg-surface/90 px-6 py-3 rounded-full border border-border backdrop-blur-sm">
@@ -118,6 +134,36 @@ const SessionHud: FC<{
         <Row label="Speed" value={`${Math.round(lastRep.speedPxPerSec)} px/s`} />
       </div>
     )}
+  </div>
+);
+
+/**
+ * Raw diagnostics for real-camera debugging: per-hand thumb-index distance
+ * (before hysteresis/debounce) and the controller's internal rep state
+ * (tracked/pending/candidate handedness). Not throttled independently — it
+ * re-renders whenever `hands` (engine HUD state, ~100ms) or the session tick
+ * (~250ms) already re-render this component, per the project's
+ * no-independent-high-frequency-state rule.
+ */
+const DebugPanel: FC<{ hands: HandObservation[]; debug: BBTDebugSnapshot | null }> = ({ hands, debug }) => (
+  <div className="absolute bottom-20 left-6 z-40 bg-surface p-4 rounded-[24px] border border-border shadow-2xl min-w-[260px] text-xs font-mono">
+    <p className="text-text-muted uppercase tracking-wider mb-2">Debug</p>
+    {hands.length === 0 && <p className="text-text-dim">No hand detected</p>}
+    {hands.map((hand) => (
+      <Row
+        key={hand.handedness}
+        label={`${hand.handedness} relDist`}
+        value={
+          hand.gestureDistances['thumb-index'] === undefined
+            ? '—'
+            : `${hand.gestureDistances['thumb-index'].toFixed(2)} (${hand.gestures['thumb-index'] ? 'pinched' : 'open'})`
+        }
+      />
+    ))}
+    <Row label="Tracked hand" value={debug?.trackedHandedness ?? '—'} />
+    <Row label="Candidate hand" value={debug?.candidateHandedness ?? '—'} />
+    <Row label="Pending for" value={debug?.pendingForMs === null || debug?.pendingForMs === undefined ? '—' : `${debug.pendingForMs}ms`} />
+    <Row label="Path length" value={debug ? `${Math.round(debug.pathLengthPx)}px` : '—'} />
   </div>
 );
 

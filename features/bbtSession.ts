@@ -58,6 +58,15 @@ export interface BBTSessionState {
   reps: BBTRep[];
 }
 
+/** Diagnostic-only snapshot of the in-progress rep, if any — for the debug overlay. */
+export interface BBTDebugSnapshot {
+  trackedHandedness: Handedness | null;
+  /** ms since the tracked hand's gesture ended, if it's currently in the relabel-grace window. */
+  pendingForMs: number | null;
+  candidateHandedness: Handedness | null;
+  pathLengthPx: number;
+}
+
 const INITIAL_STATE: BBTSessionState = {
   running: false,
   selectedHand: null,
@@ -124,6 +133,17 @@ export class BBTSessionController {
 
   getLastSummary(): BBTSessionSummary | null {
     return this.lastSummary;
+  }
+
+  /** Diagnostic-only — for the debug overlay, not used by the counting logic itself. */
+  getDebugSnapshot(): BBTDebugSnapshot | null {
+    if (!this.active) return null;
+    return {
+      trackedHandedness: this.trackedHandedness,
+      pendingForMs: this.active.pendingSince === null ? null : Date.now() - this.active.pendingSince,
+      candidateHandedness: this.active.candidateHandedness,
+      pathLengthPx: this.active.pathLengthPx,
+    };
   }
 
   start(selectedHand: Handedness, durationMs: number = DEFAULT_SESSION_MS): void {
