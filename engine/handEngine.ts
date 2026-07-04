@@ -1,0 +1,215 @@
+import { COLORS, HAND_COLOR, POINTER_DOT_RADIUS, POINTER_RADIUS_IDLE, POINTER_RADIUS_PINCH } from '../lib/colors';
+import { effectToFilter, type EffectId } from '../lib/effects';
+import { HandRecognizer, type HandObservation, type Handedness } from '../lib/recognition';
+import type { CameraInstance, HandsInstance, HandsResults } from '../types';
+
+export interface HandEngineState {
+  hands: HandObservation[];
+}
+
+export interface HandEngineCallbacks {
+  onReady?: () => void;
+  /** Throttled mirror for React HUD. */
+  onState?: (state: HandEngineState) => void;
+  /** Every frame, unthrottled — for smooth drawing. */
+  onFrame?: (state: HandEngineState) => void;
+  onGestureStart?: (handedness: Handedness, gestureId: string) => void;
+  onGestureEnd?: (handedness: Handedness, gestureId: string) => void;
+  /** Video filter to apply to the live frame this render. */
+  getEffect?: () => EffectId;
+}
+
+const HUD_UPDATE_INTERVAL_MS = 100;
+const MAX_HANDS = 2;
+
+/**
+ * The input video is shown mirrored (CSS scaleX(-1)) for a natural "selfie"
+ * feel, but MediaPipe processes the un-mirrored frame and labels handedness
+ * accordingly. Swapping the label makes "Left"/"Right" match the hand the user
+ * sees on the left/right of the screen.
+ * NOTE: if handedness reads backwards on your camera, flip this single flag.
+ */
+const SWAP_HANDEDNESS = true;
+
+function resolveHandedness(rawLabel: string): Handedness {
+  const isLeft = rawLabel === 'Left';
+  const effectiveLeft = SWAP_HANDEDNESS ? !isLeft : isLeft;
+  return effectiveLeft ? 'Left' : 'Right';
+}
+
+/**
+ * Framework-agnostic orchestrator: detection (MediaPipe) → recognition →
+ * gesture event dispatch → canvas render → throttled state. React (or anything
+ * else) consumes it through the callbacks.
+ */
+export class HandEngine {
+  private readonly recognizer = new HandRecognizer();
+  private readonly ctx: CanvasRenderingContext2D;
+  private readonly resizeObserver: ResizeObserver;
+
+  private hands: HandsInstance | null = null;
+  private camera: CameraInstance | null = null;
+  private mounted = false;
+  private reportedReady = false;
+  private lastHudUpdate = 0;
+
+  /** Active gesture state keyed by `${handedness}:${gestureId}` for edge detection. */
+  private readonly activeGestures = new Set<string>();
+
+  constructor(
+    private readonly video: HTMLVideoElement,
+    private readonly canvas: HTMLCanvasElement,
+    private readonly container: HTMLDivElement,
+    private readonly callbacks: HandEngineCallbacks,
+  ) {
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error('Could not acquire 2D canvas context');
+    this.ctx = ctx;
+
+    canvas.width = container.clientWidth;
+    canvas.height = container.clientHeight;
+    this.resizeObserver = new ResizeObserver(([entry]) => {
+      if (!entry) return;
+      this.canvas.width = entry.contentRect.width;
+      this.canvas.height = entry.contentRect.height;
+    });
+    this.resizeObserver.observe(container);
+  }
+
+  start(): void {
+    const HandsCtor = window.Hands;
+    const CameraCtor = window.Camera;
+    if (!HandsCtor || !CameraCtor) return;
+
+    this.mounted = true;
+
+    const hands = new HandsCtor({ locateFile: (file) => `/mediapipe/hands/${file}` });
+    hands.setOptions({
+      maxNumHands: MAX_HANDS,
+      modelComplexity: 1,
+      minDetectionConfidence: 0.5,
+      minTrackingConfidence: 0.5,
+    });
+    hands.onResults((results) => this.onResults(results));
+    this.hands = hands;
+
+    this.camera = new CameraCtor(this.video, {
+      onFrame: async () => {
+        if (this.hands && this.video) await this.hands.send({ image: this.video });
+      },
+      width: 1280,
+      height: 720,
+    });
+    this.camera.start();
+  }
+
+  stop(): void {
+    this.mounted = false;
+    this.resizeObserver.disconnect();
+    this.camera?.stop();
+    this.hands?.close();
+    this.camera = null;
+    this.hands = null;
+  }
+
+  private onResults(results: HandsResults): void {
+    if (!this.mounted) return;
+
+    if (!this.reportedReady) {
+      this.reportedReady = true;
+      this.callbacks.onReady?.();
+    }
+
+    const { ctx, canvas } = this;
+    const now = performance.now();
+
+    const effect = this.callbacks.getEffect?.() ?? 'none';
+
+    ctx.save();
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.filter = effectToFilter(effect);
+    ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
+    ctx.filter = 'none';
+    ctx.fillStyle = COLORS.videoOverlay;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    const observations: HandObservation[] = [];
+    const present = new Set<Handedness>();
+    const handsLandmarks = results.multiHandLandmarks ?? [];
+
+    for (let i = 0; i < handsLandmarks.length; i++) {
+      const landmarks = handsLandmarks[i];
+      if (!landmarks) continue;
+      const rawLabel = results.multiHandedness?.[i]?.label ?? 'Right';
+      const handedness = resolveHandedness(rawLabel);
+      if (present.has(handedness)) continue;
+
+      const obs = this.recognizer.recognize(handedness, landmarks, canvas.width, canvas.height, now);
+      if (!obs) continue;
+
+      present.add(handedness);
+      observations.push(obs);
+      this.renderHand(obs);
+    }
+
+    this.recognizer.retainOnly(present);
+    this.dispatchGestureEvents(observations);
+
+    ctx.restore();
+
+    this.callbacks.onFrame?.({ hands: observations });
+
+    if (now - this.lastHudUpdate > HUD_UPDATE_INTERVAL_MS) {
+      this.lastHudUpdate = now;
+      this.callbacks.onState?.({ hands: observations });
+    }
+  }
+
+  private renderHand(obs: HandObservation): void {
+    const { ctx } = this;
+    const accent = HAND_COLOR[obs.handedness];
+    const drawConnectors = window.drawConnectors;
+    const drawLandmarks = window.drawLandmarks;
+    const handConnections = window.HAND_CONNECTIONS;
+
+    if (drawConnectors && drawLandmarks && handConnections) {
+      drawConnectors(ctx, obs.landmarks, handConnections, { color: accent, lineWidth: 2 });
+      drawLandmarks(ctx, obs.landmarks, { color: COLORS.landmarkPoint, lineWidth: 1, radius: 3 });
+    }
+
+    const active = obs.gestures['thumb-index'] === true;
+    ctx.beginPath();
+    ctx.arc(obs.pointer.x, obs.pointer.y, active ? POINTER_RADIUS_PINCH : POINTER_RADIUS_IDLE, 0, Math.PI * 2);
+    ctx.strokeStyle = active ? COLORS.accentGreen : accent;
+    ctx.lineWidth = active ? 3 : 2;
+    ctx.stroke();
+
+    if (active) {
+      ctx.beginPath();
+      ctx.arc(obs.pointer.x, obs.pointer.y, POINTER_DOT_RADIUS, 0, Math.PI * 2);
+      ctx.fillStyle = COLORS.accentGreen;
+      ctx.fill();
+    }
+  }
+
+  private dispatchGestureEvents(observations: HandObservation[]): void {
+    const stillActive = new Set<string>();
+    for (const obs of observations) {
+      for (const [gestureId, isActive] of Object.entries(obs.gestures)) {
+        if (!isActive) continue;
+        const key = `${obs.handedness}:${gestureId}`;
+        stillActive.add(key);
+        if (!this.activeGestures.has(key)) {
+          this.activeGestures.add(key);
+          this.callbacks.onGestureStart?.(obs.handedness, gestureId);
+        }
+      }
+    }
+    for (const key of [...this.activeGestures]) {
+      if (stillActive.has(key)) continue;
+      const [handedness, gestureId] = key.split(':') as [Handedness, string];
+      this.activeGestures.delete(key);
+      this.callbacks.onGestureEnd?.(handedness, gestureId);
+    }
+  }
+}

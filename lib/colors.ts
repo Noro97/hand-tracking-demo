@@ -1,3 +1,5 @@
+import type { Handedness } from './recognition';
+
 /**
  * Centralised palette. Canvas drawing reads these directly; Tailwind reads the
  * same values via `@theme` variables declared in `index.css`. Keep both in sync.
@@ -18,9 +20,21 @@ export const COLORS = {
   landmarkPoint: '#aecbfa',
   cursorIdle: '#ffffff',
   videoOverlay: 'rgba(18, 18, 18, 0.55)',
+  handLeft: '#42a5f5',
+  handRight: '#fdd835',
 } as const;
+
+/** Per-hand accent so Left and Right are visually distinct on the canvas. */
+export const HAND_COLOR: Record<Handedness, string> = {
+  Left: COLORS.handLeft,
+  Right: COLORS.handRight,
+};
 
 // Pointer indicator geometry.
 export const POINTER_RADIUS_IDLE = 20;
 export const POINTER_RADIUS_PINCH = 28;
 export const POINTER_DOT_RADIUS = 6;
+
+// Brush palette and stroke widths cycled by the drawing actions.
+export const BRUSH_COLORS = ['#ef5350', '#fdd835', '#66bb6a', '#42a5f5', '#ffffff'] as const;
+export const BRUSH_SIZES = [4, 8, 16, 28] as const;
