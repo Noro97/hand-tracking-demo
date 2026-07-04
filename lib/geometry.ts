@@ -29,3 +29,8 @@ export function midpointPx(
     y: ((a.y + b.y) / 2) * height,
   };
 }
+
+/** Euclidean distance between two canvas-pixel-space points. */
+export function distPx(a: Point, b: Point): number {
+  return Math.hypot(a.x - b.x, a.y - b.y);
+}

@@ -1,6 +1,6 @@
 import type { FC, ReactNode } from 'react';
 import { useRef } from 'react';
-import { Eraser, Hand, Loader2, Monitor, Pencil, Sparkles } from 'lucide-react';
+import { Eraser, Hand, Pencil, Sparkles } from 'lucide-react';
 
 import { useHandTracking } from '../hooks/useHandTracking';
 import { useHandInteractions } from '../hooks/useHandInteractions';
@@ -9,6 +9,8 @@ import { lookupAction } from '../lib/actions';
 import { BRUSH_COLORS, BRUSH_SIZES } from '../lib/colors';
 import { GESTURES } from '../lib/gestures';
 import type { HandObservation, Handedness } from '../lib/recognition';
+import LoadingOverlay from './LoadingOverlay';
+import MobileBlocker from './MobileBlocker';
 
 const HandTrackingDemo: FC = () => {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -49,25 +51,6 @@ const HandTrackingDemo: FC = () => {
     </div>
   );
 };
-
-const MobileBlocker: FC = () => (
-  <div className="fixed inset-0 z-[100] bg-page flex flex-col items-center justify-center p-8 text-center md:hidden">
-    <Monitor className="w-16 h-16 text-accent-red mb-6 animate-pulse" />
-    <h2 className="text-2xl font-bold text-text-primary mb-4">Desktop View Required</h2>
-    <p className="text-text-muted max-w-md text-lg leading-relaxed">
-      This experience requires a larger screen and webcam.
-    </p>
-  </div>
-);
-
-const LoadingOverlay: FC = () => (
-  <div className="absolute inset-0 flex items-center justify-center bg-page z-50">
-    <div className="flex flex-col items-center">
-      <Loader2 className="w-12 h-12 text-accent-blue animate-spin mb-4" />
-      <p className="text-text-primary text-lg font-medium">Starting camera…</p>
-    </div>
-  </div>
-);
 
 const HAND_ORDER: Handedness[] = ['Left', 'Right'];
 
