@@ -8,9 +8,9 @@
 - **UI:** React 19 (+ `@types/react`, `@types/react-dom`), **Tailwind CSS v4 (локальная сборка через `@tailwindcss/vite`) с centralized palette в `index.css` `@theme`**, lucide-react (иконки)
 - **CV/ML:** @mediapipe/hands 0.4.1646424915 + camera_utils 0.3.1640029074 + drawing_utils 0.3.1620248257 — обслуживаются локально из `public/mediapipe/` (артефакты регенерируются `scripts/copy-mediapipe.mjs` через `postinstall`)
 - **AI:** удалён (задача 002).
-- **Тесты:** не настроены
+- **Тесты:** Vitest (задача 015, расширено 017) — чистый логический слой (`lib/filters`, `lib/geometry`, `lib/recognition`, `lib/gestureEventDispatcher`, `features/bbtSession`, `features/replay`), `environment: 'node'`, свой `vitest.config.ts`. 37 тестов.
 - **Линтер:** не настроен
-- **Git:** инициализирован, 2 коммита (`f6d9617` initial + `a1a0d20` post-refactor), запушены в `origin/master` (https://github.com/Noro97/hand-tracking-demo, public).
+- **Git:** инициализирован, история: `f6d9617` initial → `a1a0d20` post-refactor → `63fe45e` close-012 → `1e4bf06` persist-009/011 → task 013 → task 014 (part 1/2) → task 015 → task 016 → task 017 (см. Решения). Ветка `claude/bbt-measurement-loop` / PR #1, ещё не смержена в `master`.
 
 ## Команды
 - Сборка: `npm run build`
@@ -18,19 +18,26 @@
 - Превью сборки: `npm run preview`
 - Type-check: `npx tsc --noEmit`
 - Регенерация MediaPipe-артефактов: `npm run postinstall` (или `node scripts/copy-mediapipe.mjs`)
-- Тесты: n/a
+- Тесты: `npm run test` (once) / `npm run test:watch` (watch)
 - Линт: n/a
 
 ## Определение готовности (DoD)
 Задача считается готовой, когда выполнены все пункты:
 - [ ] `npm run build` проходит без ошибок
 - [ ] `npx tsc --noEmit` чист
+- [ ] `npm run test` зелёный (если задача трогает чистую логику в `lib/`/`features/bbtSession.ts` — новые сценарии должны получить тест, не только ручную проверку)
 - [ ] В коде нет постороннего debug-вывода (необъяснённый `console.log`, закомментированные блоки кода)
 - [ ] Не остаётся неиспользуемых импортов, файлов и зависимостей после изменений
 - [ ] Dev-сервер открывает приложение без ошибок в консоли, кроме ожидаемого `NotAllowedError: Permission denied` от камеры в headless-окружении
 
 ## Текущий фокус
-Проект на публичном GitHub: https://github.com/Noro97/hand-tracking-demo. 2 коммита запушены, working tree чистый (после третьего коммита, который добавит этот апдейт). Базовая инфраструктура, hand-tracking демо, strict-typed модульная структура, стратегический бриф — всё в репо. Следующий шаг — за пользователем: либо medtech-MVP по плану §7 STRATEGY.md, либо подготовка к расширению (rename директории, `main` вместо `master`, `.gitattributes`, tests/lint setup), либо новая вертикаль.
+Пользователь подтвердил направление: **medtech B2B SaaS для реабилитации кисти** (`docs/STRATEGY.md` §6/§8, направление 4.1a) — официальная главная цель проекта, вопрос "что строим" закрыт. Задачи 013+014 реализовали и довели до рабочего состояния первый технический шаг MVP-плана §7 (недели 3-4): Box-and-Block-Test измерительный цикл — теперь единственный экран приложения, с выбором тестируемой руки перед стартом и толерантностью к MediaPipe handedness-relabel.
+
+Пользователь запросил "strong custom debugging and testing tools... so agent could repair itself" — все три спланированные задачи реализованы в этой же сессии: 015 (Vitest + 30 детерминированных тестов чистой логики), 016 (togglable debug-панель с сырыми relDist/handedness/pending-state), 017 (record/replay-механизм: `onRawFrame` в движке, `GestureEventDispatcher` вынесен и переиспользуется движком+replay, `BBTSessionController` получил injectable clock, `features/replay.ts` прогоняет фикстуру headless). Итог: 37 тестов, включая полный synthetic end-to-end replay.
+
+**Механизм готов, но цикл не замкнут** — реальной фикстуры от пользователя ещё нет. Следующий шаг за пользователем: открыть debug-панель на реальной камере, воспроизвести проблемный жест, Record → Stop → Download fixture, передать JSON-файл. Тогда можно добавить его в `test/fixtures/` и написать fixture-специфичный regression-тест поверх `replayFixture()`.
+
+PR #1 открыт на review, ещё не смержен — реальная проверка на живой камере (толерантность relabel, надёжность single-hand gating, полезность debug/record-панели) пользователем ещё не подтверждена. Следующие шаги: (а) пользователь тестирует на реальной камере и/или присылает записанную фикстуру; (б) неделя 5 плана §7 (clinician-dashboard) — следующая продуктовая задача.
 
 ## Заблокировано
 Нет блокировок.
@@ -38,12 +45,24 @@
 ## Реестр технического долга
 - **Директория `projects/gemini-slingshot/`** всё ещё несёт legacy-имя (npm-пакет уже переименован в задаче 006). Переименование директории — отдельная задача с учётом ссылок в workspace `.claude/launch.json` и любых внешних шорткатов.
 - **Workspace `.claude/launch.json`** содержит entry `"name": "gemini-slingshot"` с `--prefix projects/gemini-slingshot` — синхронизировать с переименованием директории.
-- **Tests / Lint** не настроены — DoD опирается на ручной вызов `tsc --noEmit` и `vite build`. Если проект пойдёт в продакшен — настроить Vitest + ESLint.
+- ~~Tests / Lint не настроены~~ — **Vitest настроен задачей 015** (чистый логический слой). **Lint всё ещё не настроен** — DoD по-прежнему частично опирается на ручной `tsc --noEmit`. Если проект пойдёт в продакшен — настроить ESLint.
+- **`engine/handEngine.ts` и React-слой (компоненты/хуки) не покрыты тестами** (задача 015, намеренно) — в основном DOM/canvas/MediaPipe-glue, низкая ценность на unit-уровне без jsdom+canvas-mock. Отдельная задача, если понадобится.
 - **`.gitattributes`** не настроен; на Windows git предупреждает о LF→CRLF на каждом `add`. Не критично, но для команды с разными ОС — поставить `* text=auto eol=lf`.
 - **README может расти** — сейчас минимальный, после первого внешнего showcase'а потребует скриншотов / GIF'а / описания жестов.
+- **BBT-метрики (`features/bbtSession.ts`) в пикселях экрана, без физической калибровки** — `pathLengthPx`/`speedPxPerSec` не сравнимы между сессиями с разным разрешением/расстоянием до камеры. Достаточно для MVP-демо; для реального clinical pilot понадобится калибровка по референсному объекту известного размера в кадре (задача 013, зафиксировано в Notes).
+- **Relabel-толерантность (задача 014) не проверена на реальной камере** — константы `RELABEL_GRACE_MS=250`, `RESUME_PROXIMITY_PX=120` (`features/bbtSession.ts`) — разумные стартовые значения по аналогии с `PINCH_DEBOUNCE_MS`/`MIN_TRANSFER_PATH_PX`, но не откалиброваны по реальному MediaPipe handedness-дрожанию. Механизм для этого теперь есть (задача 017: Record → Download fixture) — ждёт, чтобы пользователь его использовал.
+- ~~Переключение режимов размонтирует камеру~~ — **снято задачей 014**: Draw Demo удалён, mode-switcher в `App.tsx` больше не существует, приложение — один экран (BBT Rehab).
+- **Записанная фикстура фиксирует `canvasWidth`/`canvasHeight` только на момент `stop()`** (`hooks/useFrameRecorder.ts`) — если окно ресайзится посреди записи, partition-математика при replay будет неточной для части сессии до ресайза. Низкий приоритет — ресайз посреди 30-60с сессии редкий сценарий (задача 017, зафиксировано в Notes).
+- **`test/fixtures/` пока не содержит ни одной реальной записи** — `features/replay.test.ts` использует только программно сгенерированную synthetic-фикстуру. Первая реальная фикстура появится, когда пользователь воспользуется Record-панелью (задача 017).
 
 ## Решения
 <!-- новые сверху: дата, одна строка -->
+### 2026-07-05 — Задача 017: `GestureEventDispatcher` вынесен из `engine/handEngine.ts` в `lib/` (переиспользуется движком и headless replay — иначе replay рисковал бы разойтись с реальным поведением). `BBTSessionController` получил injectable `now: () => number` (отход от решения задачи 015 — теперь есть второй реальный потребитель времени: `features/replay.ts`). `onRawFrame`/recorder-хук спроектированы так, чтобы НЕ пересоздавать `HandEngine` при переключении записи (стабильный callback identity через ref, не state, в deps).
+### 2026-07-05 — Задачи 015/016: Vitest добавлен для чистого логического слоя (30 тестов, включая регрессии на relabel-фикс задачи 014); debug-панель в `BBTSessionDemo.tsx` показывает сырые relDist/handedness/pending-state. `Date.now()` в `BBTSessionController` контролируется в тестах через `vi.useFakeTimers()`, без injectable-clock параметра. Задача 017 (recording+replay) спланирована, не реализована — ждёт реальной записи от пользователя.
+### 2026-07-04 — Задача 014: реальное тестирование на камере выявило 3 бага в задаче 013 (multi-gesture firing, оба руки считались одновременно, handedness-relabel путал руки). Draw Demo удалён целиком (пользователь подтвердил); BBT-сессия теперь привязана к одной выбранной руке; добавлена толерантность к relabel через `pendingSince`/`candidateHandedness` + proximity-check в `features/bbtSession.ts`. Коммиты продолжают ветку `claude/bbt-measurement-loop` / PR #1 — это докрутка того же ещё не смерженного PR, не новая задача с отдельным PR.
+### 2026-07-04 — Пользователь подтвердил главную цель проекта: medtech B2B SaaS для реабилитации кисти (4.1a). Задача 013 реализует BBT измерительный цикл как первый технический шаг MVP-плана.
+### 2026-07-04 — Обнаружены незакоммиченные изменения задач 009/011 (полный код существовал в working tree, но никогда не был закоммичен, хотя `.tasks/done/` и это STATE.md уже описывали их как готовые). Закоммичены отдельным коммитом `1e4bf06` до начала задачи 013, чтобы не смешивать чужой backlog с новой фичей.
+### 2026-07-04 — BBT-компартменты названы нейтрально "A"/"B", не "left"/"right" — экран зеркалится глобальным CSS (`canvas { scaleX(-1) }`), а `pointer.x` живёт в НЕ-зеркальном координатном пространстве; директуальные английские слова были бы семантической ловушкой, не совпадающей с тем, что видит пользователь.
 ### 2026-05-29 — Публичный GitHub-репо `Noro97/hand-tracking-demo` создан и запушен; default branch `master` (Windows-git дефолт), не `main` — миграция при желании отдельной задачей.
 ### 2026-05-29 — Code-quality refactor: strict TS, модульная структура (`lib/`, `hooks/`), узкие MediaPipe-типы, theme-палитра, удалён шаблонный мусор. `HandTrackingDemo.tsx` 335 → 109 строк.
 ### 2026-05-29 — `docs/STRATEGY.md` расширен (287 → 402 строки): market sizing, sterile-OR как 4.1b, complementary monetization streams. Источник — внешний `.docx` от пользователя, оставлен на десктопе (не в репо).
