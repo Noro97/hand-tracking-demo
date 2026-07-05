@@ -1,9 +1,10 @@
 import type { FC } from 'react';
 import { useRef, useState } from 'react';
-import { Bug, Download, Play, Square, Timer } from 'lucide-react';
+import { Bug, Circle, Download, Play, Square, Timer } from 'lucide-react';
 
 import { useHandTracking } from '../hooks/useHandTracking';
 import { useBBTSession } from '../hooks/useBBTSession';
+import { useFrameRecorder, type FrameRecorder } from '../hooks/useFrameRecorder';
 import type { BBTDebugSnapshot, BBTRep } from '../features/bbtSession';
 import type { HandObservation, Handedness } from '../lib/recognition';
 import LoadingOverlay from './LoadingOverlay';
@@ -22,10 +23,12 @@ const BBTSessionDemo: FC = () => {
   const [debugOpen, setDebugOpen] = useState(false);
 
   const session = useBBTSession(canvasRef);
+  const recorder = useFrameRecorder(canvasRef);
   const { loading, hands } = useHandTracking(videoRef, canvasRef, containerRef, {
     onGestureStart: session.onGestureStart,
     onGestureEnd: session.onGestureEnd,
     onFrame: session.onFrame,
+    onRawFrame: recorder.onRawFrame,
   });
 
   const hasResults = !session.state.running && session.state.reps.length > 0;
@@ -74,7 +77,7 @@ const BBTSessionDemo: FC = () => {
           <Bug className="w-4 h-4" />
         </button>
 
-        {debugOpen && <DebugPanel hands={hands} debug={session.getDebugSnapshot()} />}
+        {debugOpen && <DebugPanel hands={hands} debug={session.getDebugSnapshot()} recorder={recorder} />}
 
         <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-40 max-w-[90vw]">
           <div className="bg-surface/90 px-6 py-3 rounded-full border border-border backdrop-blur-sm">
@@ -145,25 +148,66 @@ const SessionHud: FC<{
  * (~250ms) already re-render this component, per the project's
  * no-independent-high-frequency-state rule.
  */
-const DebugPanel: FC<{ hands: HandObservation[]; debug: BBTDebugSnapshot | null }> = ({ hands, debug }) => (
-  <div className="absolute bottom-20 left-6 z-40 bg-surface p-4 rounded-[24px] border border-border shadow-2xl min-w-[260px] text-xs font-mono">
-    <p className="text-text-muted uppercase tracking-wider mb-2">Debug</p>
-    {hands.length === 0 && <p className="text-text-dim">No hand detected</p>}
-    {hands.map((hand) => (
+const DebugPanel: FC<{ hands: HandObservation[]; debug: BBTDebugSnapshot | null; recorder: FrameRecorder }> = ({
+  hands,
+  debug,
+  recorder,
+}) => (
+  <div className="absolute bottom-20 left-6 z-40 bg-surface p-4 rounded-[24px] border border-border shadow-2xl min-w-[260px] text-xs font-mono flex flex-col gap-3">
+    <div>
+      <p className="text-text-muted uppercase tracking-wider mb-2">Debug</p>
+      {hands.length === 0 && <p className="text-text-dim">No hand detected</p>}
+      {hands.map((hand) => (
+        <Row
+          key={hand.handedness}
+          label={`${hand.handedness} relDist`}
+          value={
+            hand.gestureDistances['thumb-index'] === undefined
+              ? '—'
+              : `${hand.gestureDistances['thumb-index'].toFixed(2)} (${hand.gestures['thumb-index'] ? 'pinched' : 'open'})`
+          }
+        />
+      ))}
+      <Row label="Tracked hand" value={debug?.trackedHandedness ?? '—'} />
+      <Row label="Candidate hand" value={debug?.candidateHandedness ?? '—'} />
       <Row
-        key={hand.handedness}
-        label={`${hand.handedness} relDist`}
-        value={
-          hand.gestureDistances['thumb-index'] === undefined
-            ? '—'
-            : `${hand.gestureDistances['thumb-index'].toFixed(2)} (${hand.gestures['thumb-index'] ? 'pinched' : 'open'})`
-        }
+        label="Pending for"
+        value={debug?.pendingForMs === null || debug?.pendingForMs === undefined ? '—' : `${debug.pendingForMs}ms`}
       />
-    ))}
-    <Row label="Tracked hand" value={debug?.trackedHandedness ?? '—'} />
-    <Row label="Candidate hand" value={debug?.candidateHandedness ?? '—'} />
-    <Row label="Pending for" value={debug?.pendingForMs === null || debug?.pendingForMs === undefined ? '—' : `${debug.pendingForMs}ms`} />
-    <Row label="Path length" value={debug ? `${Math.round(debug.pathLengthPx)}px` : '—'} />
+      <Row label="Path length" value={debug ? `${Math.round(debug.pathLengthPx)}px` : '—'} />
+    </div>
+
+    <div className="border-t border-border pt-3 flex flex-col gap-2">
+      <p className="text-text-muted uppercase tracking-wider">Record fixture</p>
+      <p className="text-text-dim normal-case leading-snug">
+        Capture raw landmark frames from this camera to a JSON file — hand it over as a bug reproduction.
+      </p>
+      {recorder.recording ? (
+        <button
+          type="button"
+          onClick={recorder.stop}
+          className="flex items-center justify-center gap-2 bg-accent-red/20 border border-accent-red text-accent-red rounded-xl px-3 py-2 font-medium"
+        >
+          <Square className="w-3.5 h-3.5" /> Stop recording
+        </button>
+      ) : (
+        <button
+          type="button"
+          onClick={recorder.start}
+          className="flex items-center justify-center gap-2 bg-border/20 border border-border text-text-primary rounded-xl px-3 py-2 font-medium"
+        >
+          <Circle className="w-3.5 h-3.5" /> Start recording
+        </button>
+      )}
+      <button
+        type="button"
+        onClick={recorder.download}
+        disabled={!recorder.hasRecording}
+        className="flex items-center justify-center gap-2 bg-border/20 border border-border text-text-primary rounded-xl px-3 py-2 font-medium disabled:opacity-40"
+      >
+        <Download className="w-3.5 h-3.5" /> Download fixture
+      </button>
+    </div>
   </div>
 );
 

@@ -1,9 +1,18 @@
 import { COLORS, HAND_COLOR, POINTER_DOT_RADIUS, POINTER_RADIUS_IDLE, POINTER_RADIUS_PINCH } from '../lib/colors';
+import { GestureEventDispatcher } from '../lib/gestureEventDispatcher';
 import { HandRecognizer, type HandObservation, type Handedness } from '../lib/recognition';
-import type { CameraInstance, HandsInstance, HandsResults } from '../types';
+import type { CameraInstance, HandsInstance, HandsResults, NormalizedLandmark } from '../types';
 
 export interface HandEngineState {
   hands: HandObservation[];
+}
+
+/** One hand's landmarks as MediaPipe reported them, after handedness-resolve
+ *  but before the per-frame same-label dedup — the raw material for
+ *  recording/replay fixtures (see features/replay.ts). */
+export interface RawHandFrame {
+  handedness: Handedness;
+  landmarks: NormalizedLandmark[];
 }
 
 export interface HandEngineCallbacks {
@@ -14,6 +23,8 @@ export interface HandEngineCallbacks {
   onFrame?: (state: HandEngineState) => void;
   onGestureStart?: (handedness: Handedness, gestureId: string) => void;
   onGestureEnd?: (handedness: Handedness, gestureId: string) => void;
+  /** Every frame, unthrottled — raw per-hand landmarks for recording fixtures. Not used by production UI. */
+  onRawFrame?: (hands: RawHandFrame[], timestampMs: number) => void;
 }
 
 const HUD_UPDATE_INTERVAL_MS = 100;
@@ -44,14 +55,13 @@ export class HandEngine {
   private readonly ctx: CanvasRenderingContext2D;
   private readonly resizeObserver: ResizeObserver;
 
+  private readonly gestureEvents = new GestureEventDispatcher();
+
   private hands: HandsInstance | null = null;
   private camera: CameraInstance | null = null;
   private mounted = false;
   private reportedReady = false;
   private lastHudUpdate = 0;
-
-  /** Active gesture state keyed by `${handedness}:${gestureId}` for edge detection. */
-  private readonly activeGestures = new Set<string>();
 
   constructor(
     private readonly video: HTMLVideoElement,
@@ -128,6 +138,7 @@ export class HandEngine {
 
     const observations: HandObservation[] = [];
     const present = new Set<Handedness>();
+    const rawHands: RawHandFrame[] = [];
     const handsLandmarks = results.multiHandLandmarks ?? [];
 
     for (let i = 0; i < handsLandmarks.length; i++) {
@@ -135,6 +146,7 @@ export class HandEngine {
       if (!landmarks) continue;
       const rawLabel = results.multiHandedness?.[i]?.label ?? 'Right';
       const handedness = resolveHandedness(rawLabel);
+      rawHands.push({ handedness, landmarks });
       if (present.has(handedness)) continue;
 
       const obs = this.recognizer.recognize(handedness, landmarks, canvas.width, canvas.height, now);
@@ -145,8 +157,10 @@ export class HandEngine {
       this.renderHand(obs);
     }
 
+    this.callbacks.onRawFrame?.(rawHands, now);
+
     this.recognizer.retainOnly(present);
-    this.dispatchGestureEvents(observations);
+    this.gestureEvents.dispatch(observations, this.callbacks.onGestureStart, this.callbacks.onGestureEnd);
 
     ctx.restore();
 
@@ -182,27 +196,6 @@ export class HandEngine {
       ctx.arc(obs.pointer.x, obs.pointer.y, POINTER_DOT_RADIUS, 0, Math.PI * 2);
       ctx.fillStyle = COLORS.accentGreen;
       ctx.fill();
-    }
-  }
-
-  private dispatchGestureEvents(observations: HandObservation[]): void {
-    const stillActive = new Set<string>();
-    for (const obs of observations) {
-      for (const [gestureId, isActive] of Object.entries(obs.gestures)) {
-        if (!isActive) continue;
-        const key = `${obs.handedness}:${gestureId}`;
-        stillActive.add(key);
-        if (!this.activeGestures.has(key)) {
-          this.activeGestures.add(key);
-          this.callbacks.onGestureStart?.(obs.handedness, gestureId);
-        }
-      }
-    }
-    for (const key of [...this.activeGestures]) {
-      if (stillActive.has(key)) continue;
-      const [handedness, gestureId] = key.split(':') as [Handedness, string];
-      this.activeGestures.delete(key);
-      this.callbacks.onGestureEnd?.(handedness, gestureId);
     }
   }
 }

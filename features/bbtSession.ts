@@ -125,6 +125,10 @@ export class BBTSessionController {
   constructor(
     private readonly getCanvasWidth: () => number,
     private readonly onStateChange: (state: BBTSessionState) => void,
+    /** Defaults to the real clock; `features/replay.ts` injects a fixture-driven
+     *  one so a recorded session's timing replays faithfully instead of at
+     *  whatever speed the replay loop happens to execute at. */
+    private readonly now: () => number = Date.now,
   ) {}
 
   getState(): BBTSessionState {
@@ -140,7 +144,7 @@ export class BBTSessionController {
     if (!this.active) return null;
     return {
       trackedHandedness: this.trackedHandedness,
-      pendingForMs: this.active.pendingSince === null ? null : Date.now() - this.active.pendingSince,
+      pendingForMs: this.active.pendingSince === null ? null : this.now() - this.active.pendingSince,
       candidateHandedness: this.active.candidateHandedness,
       pathLengthPx: this.active.pathLengthPx,
     };
@@ -148,7 +152,7 @@ export class BBTSessionController {
 
   start(selectedHand: Handedness, durationMs: number = DEFAULT_SESSION_MS): void {
     this.durationMs = durationMs;
-    this.startedAt = Date.now();
+    this.startedAt = this.now();
     this.active = null;
     this.trackedHandedness = selectedHand;
     this.state = { ...INITIAL_STATE, running: true, selectedHand, remainingMs: durationMs };
@@ -156,7 +160,7 @@ export class BBTSessionController {
   }
 
   stop(): BBTSessionSummary {
-    const summary = this.buildSummary(Date.now());
+    const summary = this.buildSummary(this.now());
     this.lastSummary = summary;
     this.active = null;
     this.trackedHandedness = null;
@@ -170,7 +174,7 @@ export class BBTSessionController {
     if (!this.state.running) return;
     this.finalizeIfGraceExpired();
 
-    const remainingMs = Math.max(0, this.durationMs - (Date.now() - this.startedAt));
+    const remainingMs = Math.max(0, this.durationMs - (this.now() - this.startedAt));
     if (remainingMs <= 0) {
       this.stop();
       return;
@@ -185,7 +189,7 @@ export class BBTSessionController {
     if (!this.active) {
       if (handedness !== this.state.selectedHand) return; // not the hand this trial is for
       this.trackedHandedness = handedness;
-      this.active = { startTime: Date.now(), startPoint: null, lastPoint: null, pathLengthPx: 0, pendingSince: null, candidateHandedness: null };
+      this.active = { startTime: this.now(), startPoint: null, lastPoint: null, pathLengthPx: 0, pendingSince: null, candidateHandedness: null };
       return;
     }
 
@@ -196,7 +200,7 @@ export class BBTSessionController {
   handleGestureEnd(handedness: Handedness, gestureId: string): void {
     if (gestureId !== TRANSFER_GESTURE_ID || !this.active) return;
     if (handedness !== this.trackedHandedness) return; // not the hand we're tracking
-    this.active.pendingSince = Date.now();
+    this.active.pendingSince = this.now();
   }
 
   /** Per-frame: extend the in-progress path, or resolve a pending relabel-candidate. */
@@ -250,7 +254,7 @@ export class BBTSessionController {
 
   private finalizeIfGraceExpired(): void {
     const rep = this.active;
-    if (rep && rep.pendingSince !== null && Date.now() - rep.pendingSince >= RELABEL_GRACE_MS) {
+    if (rep && rep.pendingSince !== null && this.now() - rep.pendingSince >= RELABEL_GRACE_MS) {
       this.finalizeActive(rep);
     }
   }
@@ -263,7 +267,7 @@ export class BBTSessionController {
     const partitionX = this.getCanvasWidth() / 2;
     if (compartmentOf(rep.startPoint.x, partitionX) === compartmentOf(rep.lastPoint.x, partitionX)) return;
 
-    const durationMs = Date.now() - rep.startTime;
+    const durationMs = this.now() - rep.startTime;
     const straightLineDistPx = distPx(rep.startPoint, rep.lastPoint);
     const completed: BBTRep = {
       durationMs,
@@ -271,7 +275,7 @@ export class BBTSessionController {
       straightLineDistPx,
       smoothness: rep.pathLengthPx > 0 ? Math.min(1, straightLineDistPx / rep.pathLengthPx) : 0,
       speedPxPerSec: durationMs > 0 ? (rep.pathLengthPx / durationMs) * 1000 : 0,
-      completedAt: Date.now(),
+      completedAt: this.now(),
     };
 
     this.state = {
