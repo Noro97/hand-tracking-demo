@@ -12,6 +12,10 @@ dist
 dist-ssr
 *.local
 
+# Supabase env — the publishable key isn't secret (RLS is the real security
+# boundary), but keep committing only the shape (.env.example), not values.
+.env
+
 # MediaPipe runtime assets — regenerated from node_modules by scripts/copy-mediapipe.mjs
 # (runs via `postinstall`; see package.json)
 /public/mediapipe/

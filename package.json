@@ -15,9 +15,11 @@
     "@mediapipe/camera_utils": "^0.3.1640029074",
     "@mediapipe/drawing_utils": "^0.3.1620248257",
     "@mediapipe/hands": "^0.4.1646424915",
+    "@supabase/supabase-js": "^2.110.0",
     "lucide-react": "^0.556.0",
     "react": "^19.2.1",
-    "react-dom": "^19.2.1"
+    "react-dom": "^19.2.1",
+    "react-router-dom": "^7.18.1"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.3.0",
