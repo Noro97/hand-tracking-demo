@@ -6,7 +6,7 @@
 - **Сборщик:** Vite 6 + @vitejs/plugin-react
 - **Язык:** TypeScript ~5.8
 - **UI:** React 19 (+ `@types/react`, `@types/react-dom`), **Tailwind CSS v4 (локальная сборка через `@tailwindcss/vite`) с centralized palette в `index.css` `@theme`**, lucide-react (иконки)
-- **CV/ML:** @mediapipe/hands 0.4.1646424915 + camera_utils 0.3.1640029074 + drawing_utils 0.3.1620248257 — обслуживаются локально из `public/mediapipe/` (артефакты регенерируются `scripts/copy-mediapipe.mjs` через `postinstall`)
+- **CV/ML:** @mediapipe/hands 0.4.1646424915 + **@mediapipe/face_mesh 0.4.1633559619 (задача 020)** + camera_utils 0.3.1640029074 + drawing_utils 0.3.1620248257 — обслуживаются локально из `public/mediapipe/` (40 МБ, артефакты регенерируются `scripts/copy-mediapipe.mjs` через `postinstall`)
 - **AI:** удалён (задача 002).
 - **Тесты:** Vitest (задача 015, расширено 017) — чистый логический слой (`lib/filters`, `lib/geometry`, `lib/recognition`, `lib/gestureEventDispatcher`, `features/bbtSession`, `features/replay`), `environment: 'node'`, свой `vitest.config.ts`. 37 тестов.
 - **Линтер:** не настроен
@@ -37,7 +37,11 @@
 
 **Механизм готов, но цикл не замкнут** — реальной фикстуры от пользователя ещё нет. Следующий шаг за пользователем: открыть debug-панель на реальной камере, воспроизвести проблемный жест, Record → Stop → Download fixture, передать JSON-файл. Тогда можно добавить его в `test/fixtures/` и написать fixture-специфичный regression-тест поверх `replayFixture()`.
 
-PR #1 открыт на review, ещё не смержен — реальная проверка на живой камере (толерантность relabel, надёжность single-hand gating, полезность debug/record-панели) пользователем ещё не подтверждена. Следующие шаги: (а) пользователь тестирует на реальной камере и/или присылает записанную фикстуру; (б) неделя 5 плана §7 (clinician-dashboard) — следующая продуктовая задача.
+PR #1 смержен в master (06.07.2026). Параллельные ветки: 018 clinician-dashboard (приостановлена — Supabase org-квота, пользователь ждёт сброса/Pro), 019 ESLint (PR #2 открыт).
+
+**Задача 020 (эта ветка, `claude/face-tracking`): face tracking добавлен** — MediaPipe Face Mesh тем же паттерном, что и руки (UMD-глобалы, локальные ассеты, параллельный `FaceEngine`, чистые метрики `lib/faceMetrics.ts` с 6 тестами, экран "Face Tracking" рядом с "BBT Rehab" через локальный mode-свитчер). 43 теста. Задача 021 (фильтры на руки/лица, landmark-anchored overlays) — спланирована в `.tasks/021-landmark-filters.md`, реализация после мержа 020. Внимание: 020/021 — showcase-трек, medtech-ядро (BBT) не тронуто.
+
+Следующие шаги: (а) пользователь тестирует BBT + Face на реальной камере; (б) реализация 021 (фильтры); (в) 018 возобновляется после снятия Supabase-квоты.
 
 ## Заблокировано
 Нет блокировок.
@@ -57,6 +61,7 @@ PR #1 открыт на review, ещё не смержен — реальная 
 
 ## Решения
 <!-- новые сверху: дата, одна строка -->
+### 2026-07-06 — Задача 020: Face Mesh добавлен параллельным `FaceEngine` (НЕ расширением HandEngine и НЕ общим базовым классом — извлекать базу только при третьем движке). Метрики scale-invariant (`lib/faceMetrics.ts`), индексы именованы (`lib/faceLandmarks.ts`, стороны СУБЪЕКТА). Mode-свитчер BBT/Face — локальный useState (прецедент 013), камера перезапускается при переключении (принятый trade-off). Задача 021 (фильтры) спланирована.
 ### 2026-07-05 — Задача 017: `GestureEventDispatcher` вынесен из `engine/handEngine.ts` в `lib/` (переиспользуется движком и headless replay — иначе replay рисковал бы разойтись с реальным поведением). `BBTSessionController` получил injectable `now: () => number` (отход от решения задачи 015 — теперь есть второй реальный потребитель времени: `features/replay.ts`). `onRawFrame`/recorder-хук спроектированы так, чтобы НЕ пересоздавать `HandEngine` при переключении записи (стабильный callback identity через ref, не state, в deps).
 ### 2026-07-05 — Задачи 015/016: Vitest добавлен для чистого логического слоя (30 тестов, включая регрессии на relabel-фикс задачи 014); debug-панель в `BBTSessionDemo.tsx` показывает сырые relDist/handedness/pending-state. `Date.now()` в `BBTSessionController` контролируется в тестах через `vi.useFakeTimers()`, без injectable-clock параметра. Задача 017 (recording+replay) спланирована, не реализована — ждёт реальной записи от пользователя.
 ### 2026-07-04 — Задача 014: реальное тестирование на камере выявило 3 бага в задаче 013 (multi-gesture firing, оба руки считались одновременно, handedness-relabel путал руки). Draw Demo удалён целиком (пользователь подтвердил); BBT-сессия теперь привязана к одной выбранной руке; добавлена толерантность к relabel через `pendingSince`/`candidateHandedness` + proximity-check в `features/bbtSession.ts`. Коммиты продолжают ветку `claude/bbt-measurement-loop` / PR #1 — это докрутка того же ещё не смерженного PR, не новая задача с отдельным PR.
