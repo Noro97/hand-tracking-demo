@@ -12,7 +12,7 @@
 import { mkdirSync, readdirSync, copyFileSync, existsSync, rmSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
-const PACKAGES = ['hands', 'camera_utils', 'drawing_utils'];
+const PACKAGES = ['hands', 'face_mesh', 'camera_utils', 'drawing_utils'];
 const SRC_BASE = 'node_modules/@mediapipe';
 const DEST_BASE = 'public/mediapipe';
 

@@ -18,6 +18,8 @@ export const COLORS = {
   accentRed: '#ef5350',
   landmarkLine: '#669df6',
   landmarkPoint: '#aecbfa',
+  faceMeshLine: 'rgba(102, 157, 246, 0.35)',
+  faceContourLine: '#aecbfa',
   cursorIdle: '#ffffff',
   videoOverlay: 'rgba(18, 18, 18, 0.55)',
   handLeft: '#42a5f5',

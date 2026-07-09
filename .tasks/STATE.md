@@ -6,9 +6,9 @@
 - **Сборщик:** Vite 6 + @vitejs/plugin-react
 - **Язык:** TypeScript ~5.8
 - **UI:** React 19 (+ `@types/react`, `@types/react-dom`), **Tailwind CSS v4 (локальная сборка через `@tailwindcss/vite`) с centralized palette в `index.css` `@theme`**, lucide-react (иконки)
-- **CV/ML:** @mediapipe/hands 0.4.1646424915 + camera_utils 0.3.1640029074 + drawing_utils 0.3.1620248257 — обслуживаются локально из `public/mediapipe/` (артефакты регенерируются `scripts/copy-mediapipe.mjs` через `postinstall`)
+- **CV/ML:** @mediapipe/hands 0.4.1646424915 + **@mediapipe/face_mesh 0.4.1633559619 (задача 020)** + camera_utils 0.3.1640029074 + drawing_utils 0.3.1620248257 — обслуживаются локально из `public/mediapipe/` (40 МБ, артефакты регенерируются `scripts/copy-mediapipe.mjs` через `postinstall`)
 - **AI:** удалён (задача 002).
-- **Тесты:** Vitest (задача 015, расширено 017) — чистый логический слой (`lib/filters`, `lib/geometry`, `lib/recognition`, `lib/gestureEventDispatcher`, `features/bbtSession`, `features/replay`), `environment: 'node'`, свой `vitest.config.ts`. 37 тестов.
+- **Тесты:** Vitest (задача 015, расширено 017/020) — чистый логический слой (`lib/filters`, `lib/geometry`, `lib/recognition`, `lib/gestureEventDispatcher`, `lib/faceMetrics`, `features/bbtSession`, `features/replay`), `environment: 'node'`, свой `vitest.config.ts`. 43 теста.
 - **Линтер:** ESLint 9 flat config (задача 019) — typescript-eslint (type-aware), eslint-plugin-react-hooks (без `refs`/`immutability` — конфликтуют с намеренным паттерном "controller в ref", см. Решения), eslint-plugin-react-refresh. `npm run lint` чист.
 - **Git:** инициализирован, история: `f6d9617` initial → `a1a0d20` post-refactor → `63fe45e` close-012 → `1e4bf06` persist-009/011 → task 013 → task 014 (part 1/2) → task 015 → task 016 → task 017 (PR #1, смержен в master 06.07.2026) → task 018 (clinician dashboard, ветка `claude/clinician-dashboard-foundation`, приостановлена) → task 019 (ESLint, ветка `claude/eslint-setup`) (см. Решения).
 
@@ -38,9 +38,11 @@
 
 **Задача 018 (clinician dashboard) приостановлена** на ветке `claude/clinician-dashboard-foundation` — код готов (Supabase-схема+RLS, auth, react-router, dashboard), но живая проверка заблокирована org-wide Supabase-квотой (`exceed_db_size_quota` от проекта "Proof"). Пользователь решил ждать сброса квоты/апгрейда — не переключаться на новую организацию, не трогать Proof.
 
-**Задача 019 (ESLint) выполнена** на отдельной ветке `claude/eslint-setup` (от `master`, не связана с dashboard-веткой) — `npm run lint` чист с первого прогона, репо уже было дисциплинированным.
+**Задача 019 (ESLint) выполнена и смержена** (PR #2, 06.07.2026) — `npm run lint` чист с первого прогона, репо уже было дисциплинированным.
 
-Следующие шаги: (а) пользователь тестирует BBT на реальной камере и/или присылает записанную фикстуру; (б) пользователь снимает Supabase-квоту → возобновить задачу 018; (в) неделя 5 плана §7 (clinician-dashboard) продолжается после 018.
+**Задача 020 (`claude/face-tracking`): face tracking добавлен** — MediaPipe Face Mesh тем же паттерном, что и руки (UMD-глобалы, локальные ассеты, параллельный `FaceEngine`, чистые метрики `lib/faceMetrics.ts` с 6 тестами, экран "Face Tracking" рядом с "BBT Rehab" через локальный mode-свитчер). 43 теста. Задача 021 (фильтры на руки/лица, landmark-anchored overlays) — спланирована в `.tasks/021-landmark-filters.md`, реализация после мержа 020. Внимание: 020/021 — showcase-трек, medtech-ядро (BBT) не тронуто.
+
+Следующие шаги: (а) пользователь тестирует BBT + Face на реальной камере; (б) реализация 021 (фильтры); (в) 018 возобновляется после снятия Supabase-квоты.
 
 ## Заблокировано
 - Задача 018 (clinician dashboard) — ждёт снятия Supabase org-квоты пользователем. Не блокирует ничего другого (независимая ветка).
@@ -61,6 +63,7 @@
 
 ## Решения
 <!-- новые сверху: дата, одна строка -->
+### 2026-07-06 — Задача 020: Face Mesh добавлен параллельным `FaceEngine` (НЕ расширением HandEngine и НЕ общим базовым классом — извлекать базу только при третьем движке). Метрики scale-invariant (`lib/faceMetrics.ts`), индексы именованы (`lib/faceLandmarks.ts`, стороны СУБЪЕКТА). Mode-свитчер BBT/Face — локальный useState (прецедент 013), камера перезапускается при переключении (принятый trade-off). Задача 021 (фильтры) спланирована.
 ### 2026-07-06 — Задача 019: ESLint 9 flat config добавлен. `react-hooks/refs`/`react-hooks/immutability` (новые React Compiler-ориентированные правила из eslint-plugin-react-hooks v7) отключены — конфликтуют с намеренным паттерном "лениво созданный controller в ref" (`useBBTSession.ts`), проект не использует React Compiler. Остальные правила (rules-of-hooks, exhaustive-deps, typescript-eslint type-aware) активны, `npm run lint` чист с первого прогона.
 ### 2026-07-06 — PR #1 смержен в `master` (merge commit, не squash — сохраняет гранулярность per-task коммитов). Задача 018 (clinician dashboard) начата на отдельной ветке от `master`, заблокирована Supabase org-квотой; пользователь решил ждать вместо смены организации.
 ### 2026-07-05 — Задача 017: `GestureEventDispatcher` вынесен из `engine/handEngine.ts` в `lib/` (переиспользуется движком и headless replay — иначе replay рисковал бы разойтись с реальным поведением). `BBTSessionController` получил injectable `now: () => number` (отход от решения задачи 015 — теперь есть второй реальный потребитель времени: `features/replay.ts`). `onRawFrame`/recorder-хук спроектированы так, чтобы НЕ пересоздавать `HandEngine` при переключении записи (стабильный callback identity через ref, не state, в deps).
