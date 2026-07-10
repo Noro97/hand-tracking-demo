@@ -1,4 +1,5 @@
 import { COLORS, HAND_COLOR, POINTER_DOT_RADIUS, POINTER_RADIUS_IDLE, POINTER_RADIUS_PINCH } from '../lib/colors';
+import { drawActiveFilters } from '../lib/filterRenderers';
 import { GestureEventDispatcher } from '../lib/gestureEventDispatcher';
 import { HandRecognizer, type HandObservation, type Handedness } from '../lib/recognition';
 import type { CameraInstance, HandsInstance, HandsResults, NormalizedLandmark } from '../types';
@@ -25,6 +26,8 @@ export interface HandEngineCallbacks {
   onGestureEnd?: (handedness: Handedness, gestureId: string) => void;
   /** Every frame, unthrottled — raw per-hand landmarks for recording fixtures. Not used by production UI. */
   onRawFrame?: (hands: RawHandFrame[], timestampMs: number) => void;
+  /** Active AR-filter ids to draw this frame. Identity must be stable (read state via ref). */
+  getActiveFilters?: () => readonly string[];
 }
 
 const HUD_UPDATE_INTERVAL_MS = 100;
@@ -155,6 +158,10 @@ export class HandEngine {
       present.add(handedness);
       observations.push(obs);
       this.renderHand(obs);
+      const activeFilters = this.callbacks.getActiveFilters?.() ?? [];
+      if (activeFilters.length > 0) {
+        drawActiveFilters(ctx, activeFilters, 'hand', obs.landmarks, canvas.width, canvas.height);
+      }
     }
 
     this.callbacks.onRawFrame?.(rawHands, now);

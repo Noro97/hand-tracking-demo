@@ -13,7 +13,10 @@ export interface HandTrackingState {
  * recognition, and canvas rendering; this hook just mirrors its state for the
  * HUD and forwards optional gesture callbacks.
  */
-type ForwardedCallbacks = Pick<HandEngineCallbacks, 'onGestureStart' | 'onGestureEnd' | 'onFrame' | 'onRawFrame'>;
+type ForwardedCallbacks = Pick<
+  HandEngineCallbacks,
+  'onGestureStart' | 'onGestureEnd' | 'onFrame' | 'onRawFrame' | 'getActiveFilters'
+>;
 
 export function useHandTracking(
   videoRef: RefObject<HTMLVideoElement | null>,
@@ -24,7 +27,7 @@ export function useHandTracking(
   const [loading, setLoading] = useState(true);
   const [hands, setHands] = useState<HandObservation[]>([]);
 
-  const { onGestureStart, onGestureEnd, onFrame, onRawFrame } = callbacks ?? {};
+  const { onGestureStart, onGestureEnd, onFrame, onRawFrame, getActiveFilters } = callbacks ?? {};
 
   useEffect(() => {
     const video = videoRef.current;
@@ -39,11 +42,12 @@ export function useHandTracking(
       onGestureEnd,
       onFrame,
       onRawFrame,
+      getActiveFilters,
     });
     engine.start();
 
     return () => engine.stop();
-  }, [videoRef, canvasRef, containerRef, onGestureStart, onGestureEnd, onFrame, onRawFrame]);
+  }, [videoRef, canvasRef, containerRef, onGestureStart, onGestureEnd, onFrame, onRawFrame, getActiveFilters]);
 
   return { loading, hands };
 }
