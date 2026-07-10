@@ -30,7 +30,7 @@ function openAt(thumbX: number): NormalizedLandmark[] {
 }
 
 function rightHand(landmarks: NormalizedLandmark[]): RawHandFrame[] {
-  return [{ handedness: 'Right', landmarks }];
+  return [{ handedness: 'Right', score: 1, landmarks }];
 }
 
 /**

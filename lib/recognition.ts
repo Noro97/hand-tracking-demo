@@ -12,8 +12,20 @@ import { LM } from './landmarks';
 
 export type Handedness = 'Left' | 'Right';
 
+/**
+ * Detections whose MediaPipe handedness-classification score falls below this
+ * are rejected outright. Face/beard textures occasionally false-positive as a
+ * "hand" (observed live: a hand skeleton locked onto the user's mouth and even
+ * confirmed a pinch); those detections tend to score noticeably lower than
+ * real hands (~0.95+). Tunable: raise if face-hands persist, lower if real
+ * hands in poor lighting start being dropped.
+ */
+export const MIN_HANDEDNESS_SCORE = 0.8;
+
 export interface HandObservation {
   handedness: Handedness;
+  /** MediaPipe's confidence in the Left/Right classification — diagnostic, shown in the debug panel. */
+  handednessScore: number;
   /** Smoothed pointer (thumb/index midpoint) in canvas pixel space. */
   pointer: Point;
   /** Active state per gesture id. */
@@ -61,7 +73,12 @@ export class HandRecognizer {
     canvasWidth: number,
     canvasHeight: number,
     now: number,
+    handednessScore = 1,
   ): HandObservation | null {
+    // Gate lives HERE (not in the engine) so headless replay applies the exact
+    // same rejection logic as the live pipeline — the task-017 no-drift rule.
+    if (handednessScore < MIN_HANDEDNESS_SCORE) return null;
+
     const thumbTip = landmarks[LM.THUMB_TIP];
     const indexTip = landmarks[LM.INDEX_TIP];
     if (!thumbTip || !indexTip) return null;
@@ -90,7 +107,7 @@ export class HandRecognizer {
       y: trackers.filterY.filter(raw.y, now),
     };
 
-    return { handedness, pointer, gestures, gestureDistances, landmarks };
+    return { handedness, handednessScore, pointer, gestures, gestureDistances, landmarks };
   }
 
   /** Reset filters/trackers for hands not seen in the current frame. */

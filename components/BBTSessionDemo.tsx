@@ -158,15 +158,17 @@ const DebugPanel: FC<{ hands: HandObservation[]; debug: BBTDebugSnapshot | null;
       <p className="text-text-muted uppercase tracking-wider mb-2">Debug</p>
       {hands.length === 0 && <p className="text-text-dim">No hand detected</p>}
       {hands.map((hand) => (
-        <Row
-          key={hand.handedness}
-          label={`${hand.handedness} relDist`}
-          value={
-            hand.gestureDistances['thumb-index'] === undefined
-              ? '—'
-              : `${hand.gestureDistances['thumb-index'].toFixed(2)} (${hand.gestures['thumb-index'] ? 'pinched' : 'open'})`
-          }
-        />
+        <div key={hand.handedness}>
+          <Row
+            label={`${hand.handedness} relDist`}
+            value={
+              hand.gestureDistances['thumb-index'] === undefined
+                ? '—'
+                : `${hand.gestureDistances['thumb-index'].toFixed(2)} (${hand.gestures['thumb-index'] ? 'pinched' : 'open'})`
+            }
+          />
+          <Row label={`${hand.handedness} score`} value={hand.handednessScore.toFixed(2)} />
+        </div>
       ))}
       <Row label="Tracked hand" value={debug?.trackedHandedness ?? '—'} />
       <Row label="Candidate hand" value={debug?.candidateHandedness ?? '—'} />

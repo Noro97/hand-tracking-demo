@@ -42,9 +42,11 @@
 
 **Задача 020: face tracking добавлен и смержен** (PR #3, 10.07.2026) — MediaPipe Face Mesh тем же паттерном, что и руки (UMD-глобалы, локальные ассеты, параллельный `FaceEngine`, чистые метрики `lib/faceMetrics.ts`).
 
-**Задача 021 (`claude/landmark-filters`): AR-фильтры реализованы** — декларативный реестр (`lib/filterRenderers.ts`, по образцу GESTURES): Glasses/Hat/Mustache на лицо, Ring/Nails на руки; чистое якорение `lib/filterAnchors.ts` (`segmentTransform` — position+scale+rotation из пары landmarks); движки получили `getActiveFilters` колбэк (стабильный identity через `hooks/useActiveFilters.ts` — переключение фильтров не перезапускает камеру); ручные фильтры на НОВОМ отдельном экране "Hand Filters" (playground), клинический BBT не тронут. Итого три экрана: BBT Rehab / Face Tracking / Hand Filters. 51 тест. Внимание: 020/021 — showcase-трек, medtech-ядро (BBT) не тронуто.
+**Задача 021: AR-фильтры реализованы и смержены** (PR #4, 10.07.2026) — декларативный реестр (`lib/filterRenderers.ts`): Glasses/Hat/Mustache на лицо, Ring/Nails на руки; ручные фильтры на отдельном экране "Hand Filters", клинический BBT не тронут. Три экрана: BBT Rehab / Face Tracking / Hand Filters. 020/021 — showcase-трек.
 
-Следующие шаги: (а) пользователь тестирует все три экрана на реальной камере (посадка фильтров — очки на глазах, кольцо на пальце — headless непроверяема, пропорции стартовые); (б) 018 возобновляется после снятия Supabase-квоты; (в) неделя 5 MVP-плана (clinician dashboard) продолжается после 018.
+**Задача 022 (`claude/hand-false-positive`): фикс ложного распознавания руки на лице** — пользователь прислал скриншот с реальной камеры: hand-скелет + подтверждённый pinch на его рту/бороде (BBT-экран). Фикс: пороги детекции 0.5 → 0.75/0.7 (`engine/handEngine.ts`); НОВЫЙ score-gate `MIN_HANDEDNESS_SCORE = 0.8` в `HandRecognizer.recognize()` (раньше `multiHandedness[i].score` игнорировался) — в recognizer, не в движке, чтобы replay применял то же отсечение; score виден в debug-панели и записывается в фикстуры. 54 теста (+3 регрессии).
+
+Следующие шаги: (а) пользователь перепроверяет на ТОЙ ЖЕ камере: фантом на рту исчез И реальные руки всё ещё детектятся (пороги — стартовая калибровка); заодно посадку фильтров на Face/Hand-экранах; (б) 018 возобновляется после снятия Supabase-квоты; (в) неделя 5 MVP-плана (clinician dashboard) продолжается после 018.
 
 ## Заблокировано
 - Задача 018 (clinician dashboard) — ждёт снятия Supabase org-квоты пользователем. Не блокирует ничего другого (независимая ветка).
@@ -65,6 +67,7 @@
 
 ## Решения
 <!-- новые сверху: дата, одна строка -->
+### 2026-07-10 — Задача 022: face-as-hand false positive лечится ДВУМЯ слоями — пороги детекции движка (0.75/0.7) + score-gate (`MIN_HANDEDNESS_SCORE=0.8`) в `HandRecognizer.recognize()`. Гейт в recognizer (не в engine-цикле) — replay применяет то же отсечение (no-drift правило 017). `RawHandFrame.score` теперь в фикстурах — низко-скоровый фантом воспроизводим headless.
 ### 2026-07-10 — Задача 021: AR-фильтры через декларативный реестр (`lib/filterRenderers.ts`) + чистое якорение (`lib/filterAnchors.ts::segmentTransform`). Ручные фильтры — на отдельном playground-экране "Hand Filters", НЕ на клиническом BBT. Только симметричные canvas-примитивы (канвас CSS-зеркален — текст/асимметрия отзеркалились бы). `getActiveFilters` — стабильный identity через ref-паттерн (`useActiveFilters`), урок 017. Экран "руки+лицо одновременно" отложен (два solution на одном потоке дороже по CPU; Holistic — смена стека).
 ### 2026-07-10 — PR #2 (ESLint) и PR #3 (face tracking) смержены в master; конфликты `.tasks/`+`package.json` между ними разрешены merge-коммитом на face-ветке до мержа PR #3.
 ### 2026-07-06 — Задача 020: Face Mesh добавлен параллельным `FaceEngine` (НЕ расширением HandEngine и НЕ общим базовым классом — извлекать базу только при третьем движке). Метрики scale-invariant (`lib/faceMetrics.ts`), индексы именованы (`lib/faceLandmarks.ts`, стороны СУБЪЕКТА). Mode-свитчер BBT/Face — локальный useState (прецедент 013), камера перезапускается при переключении (принятый trade-off). Задача 021 (фильтры) спланирована.

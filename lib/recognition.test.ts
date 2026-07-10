@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { HandRecognizer } from './recognition';
+import { HandRecognizer, MIN_HANDEDNESS_SCORE } from './recognition';
 import { LM } from './landmarks';
 import type { NormalizedLandmark } from '../types';
 
@@ -36,6 +36,27 @@ describe('HandRecognizer', () => {
   it('returns null when a required landmark is missing', () => {
     const recognizer = new HandRecognizer();
     expect(recognizer.recognize('Right', [], 100, 100, 0)).toBeNull();
+  });
+
+  it('rejects a detection below the handedness-score gate (face-as-hand false positive)', () => {
+    const recognizer = new HandRecognizer();
+    // Regression for the live bug: a "hand" MediaPipe hallucinated on the
+    // user's mouth. Its landmarks were perfectly pinch-shaped — only the low
+    // classification score gives it away.
+    const rejected = recognizer.recognize('Right', makeLandmarks(0.1), 100, 100, 0, MIN_HANDEDNESS_SCORE - 0.01);
+    expect(rejected).toBeNull();
+  });
+
+  it('accepts a detection at or above the handedness-score gate and defaults to accepting when no score is given', () => {
+    const recognizer = new HandRecognizer();
+    expect(recognizer.recognize('Right', makeLandmarks(0.8), 100, 100, 0, MIN_HANDEDNESS_SCORE)).not.toBeNull();
+    expect(recognizer.recognize('Left', makeLandmarks(0.8), 100, 100, 0)).not.toBeNull();
+  });
+
+  it('exposes the score on the observation for the debug panel', () => {
+    const recognizer = new HandRecognizer();
+    const obs = recognizer.recognize('Right', makeLandmarks(0.8), 100, 100, 0, 0.93);
+    expect(obs?.handednessScore).toBe(0.93);
   });
 
   it('smooths the pointer — a big single-frame jump does not fully pass through', () => {
