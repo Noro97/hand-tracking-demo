@@ -1,5 +1,6 @@
 import { COLORS } from '../lib/colors';
 import { computeFaceMetrics, type FaceMetrics } from '../lib/faceMetrics';
+import { drawActiveFilters } from '../lib/filterRenderers';
 import type { CameraInstance, FaceMeshInstance, FaceMeshResults, NormalizedLandmark } from '../types';
 
 export interface FaceEngineState {
@@ -11,6 +12,8 @@ export interface FaceEngineCallbacks {
   onReady?: () => void;
   /** Throttled mirror for React HUD. */
   onState?: (state: FaceEngineState) => void;
+  /** Active AR-filter ids to draw this frame. Identity must be stable (read state via ref). */
+  getActiveFilters?: () => readonly string[];
 }
 
 const HUD_UPDATE_INTERVAL_MS = 100;
@@ -110,6 +113,10 @@ export class FaceEngine {
     if (landmarks) {
       metrics = computeFaceMetrics(landmarks);
       this.renderFace(landmarks);
+      const activeFilters = this.callbacks.getActiveFilters?.() ?? [];
+      if (activeFilters.length > 0) {
+        drawActiveFilters(ctx, activeFilters, 'face', landmarks, canvas.width, canvas.height);
+      }
     }
 
     ctx.restore();

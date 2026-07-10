@@ -2,8 +2,11 @@ import type { FC } from 'react';
 import { useRef } from 'react';
 import { Eye, EyeOff, ScanFace } from 'lucide-react';
 
+import { useActiveFilters } from '../hooks/useActiveFilters';
 import { useFaceTracking } from '../hooks/useFaceTracking';
 import { EYE_CLOSED_THRESHOLD, type FaceMetrics } from '../lib/faceMetrics';
+import { FACE_FILTERS } from '../lib/filterRenderers';
+import FilterPicker from './FilterPicker';
 import LoadingOverlay from './LoadingOverlay';
 import MobileBlocker from './MobileBlocker';
 
@@ -12,7 +15,10 @@ const FaceTrackingDemo: FC = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const { loading, faceDetected, metrics } = useFaceTracking(videoRef, canvasRef, containerRef);
+  const filters = useActiveFilters();
+  const { loading, faceDetected, metrics } = useFaceTracking(videoRef, canvasRef, containerRef, {
+    getActiveFilters: filters.getActiveFilters,
+  });
 
   return (
     <div className="flex w-full h-screen bg-page text-text-primary overflow-hidden font-roboto">
@@ -25,6 +31,7 @@ const FaceTrackingDemo: FC = () => {
         {loading && <LoadingOverlay />}
 
         <FaceHud faceDetected={faceDetected} metrics={metrics} />
+        <FilterPicker filters={FACE_FILTERS} active={filters.active} onToggle={filters.toggle} />
 
         <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-40 max-w-[90vw]">
           <div className="bg-surface/90 px-6 py-3 rounded-full border border-border backdrop-blur-sm">

@@ -8,7 +8,7 @@
 - **UI:** React 19 (+ `@types/react`, `@types/react-dom`), **Tailwind CSS v4 (локальная сборка через `@tailwindcss/vite`) с centralized palette в `index.css` `@theme`**, lucide-react (иконки)
 - **CV/ML:** @mediapipe/hands 0.4.1646424915 + **@mediapipe/face_mesh 0.4.1633559619 (задача 020)** + camera_utils 0.3.1640029074 + drawing_utils 0.3.1620248257 — обслуживаются локально из `public/mediapipe/` (40 МБ, артефакты регенерируются `scripts/copy-mediapipe.mjs` через `postinstall`)
 - **AI:** удалён (задача 002).
-- **Тесты:** Vitest (задача 015, расширено 017/020) — чистый логический слой (`lib/filters`, `lib/geometry`, `lib/recognition`, `lib/gestureEventDispatcher`, `lib/faceMetrics`, `features/bbtSession`, `features/replay`), `environment: 'node'`, свой `vitest.config.ts`. 43 теста.
+- **Тесты:** Vitest (задача 015, расширено 017/020/021) — чистый логический слой (`lib/filters`, `lib/geometry`, `lib/recognition`, `lib/gestureEventDispatcher`, `lib/faceMetrics`, `lib/filterAnchors`, `lib/filterRenderers`, `features/bbtSession`, `features/replay`), `environment: 'node'`, свой `vitest.config.ts`. 51 тест.
 - **Линтер:** ESLint 9 flat config (задача 019) — typescript-eslint (type-aware), eslint-plugin-react-hooks (без `refs`/`immutability` — конфликтуют с намеренным паттерном "controller в ref", см. Решения), eslint-plugin-react-refresh. `npm run lint` чист.
 - **Git:** инициализирован, история: `f6d9617` initial → `a1a0d20` post-refactor → `63fe45e` close-012 → `1e4bf06` persist-009/011 → task 013 → task 014 (part 1/2) → task 015 → task 016 → task 017 (PR #1, смержен в master 06.07.2026) → task 018 (clinician dashboard, ветка `claude/clinician-dashboard-foundation`, приостановлена) → task 019 (ESLint, ветка `claude/eslint-setup`) (см. Решения).
 
@@ -40,9 +40,11 @@
 
 **Задача 019 (ESLint) выполнена и смержена** (PR #2, 06.07.2026) — `npm run lint` чист с первого прогона, репо уже было дисциплинированным.
 
-**Задача 020 (`claude/face-tracking`): face tracking добавлен** — MediaPipe Face Mesh тем же паттерном, что и руки (UMD-глобалы, локальные ассеты, параллельный `FaceEngine`, чистые метрики `lib/faceMetrics.ts` с 6 тестами, экран "Face Tracking" рядом с "BBT Rehab" через локальный mode-свитчер). 43 теста. Задача 021 (фильтры на руки/лица, landmark-anchored overlays) — спланирована в `.tasks/021-landmark-filters.md`, реализация после мержа 020. Внимание: 020/021 — showcase-трек, medtech-ядро (BBT) не тронуто.
+**Задача 020: face tracking добавлен и смержен** (PR #3, 10.07.2026) — MediaPipe Face Mesh тем же паттерном, что и руки (UMD-глобалы, локальные ассеты, параллельный `FaceEngine`, чистые метрики `lib/faceMetrics.ts`).
 
-Следующие шаги: (а) пользователь тестирует BBT + Face на реальной камере; (б) реализация 021 (фильтры); (в) 018 возобновляется после снятия Supabase-квоты.
+**Задача 021 (`claude/landmark-filters`): AR-фильтры реализованы** — декларативный реестр (`lib/filterRenderers.ts`, по образцу GESTURES): Glasses/Hat/Mustache на лицо, Ring/Nails на руки; чистое якорение `lib/filterAnchors.ts` (`segmentTransform` — position+scale+rotation из пары landmarks); движки получили `getActiveFilters` колбэк (стабильный identity через `hooks/useActiveFilters.ts` — переключение фильтров не перезапускает камеру); ручные фильтры на НОВОМ отдельном экране "Hand Filters" (playground), клинический BBT не тронут. Итого три экрана: BBT Rehab / Face Tracking / Hand Filters. 51 тест. Внимание: 020/021 — showcase-трек, medtech-ядро (BBT) не тронуто.
+
+Следующие шаги: (а) пользователь тестирует все три экрана на реальной камере (посадка фильтров — очки на глазах, кольцо на пальце — headless непроверяема, пропорции стартовые); (б) 018 возобновляется после снятия Supabase-квоты; (в) неделя 5 MVP-плана (clinician dashboard) продолжается после 018.
 
 ## Заблокировано
 - Задача 018 (clinician dashboard) — ждёт снятия Supabase org-квоты пользователем. Не блокирует ничего другого (независимая ветка).
@@ -63,6 +65,8 @@
 
 ## Решения
 <!-- новые сверху: дата, одна строка -->
+### 2026-07-10 — Задача 021: AR-фильтры через декларативный реестр (`lib/filterRenderers.ts`) + чистое якорение (`lib/filterAnchors.ts::segmentTransform`). Ручные фильтры — на отдельном playground-экране "Hand Filters", НЕ на клиническом BBT. Только симметричные canvas-примитивы (канвас CSS-зеркален — текст/асимметрия отзеркалились бы). `getActiveFilters` — стабильный identity через ref-паттерн (`useActiveFilters`), урок 017. Экран "руки+лицо одновременно" отложен (два solution на одном потоке дороже по CPU; Holistic — смена стека).
+### 2026-07-10 — PR #2 (ESLint) и PR #3 (face tracking) смержены в master; конфликты `.tasks/`+`package.json` между ними разрешены merge-коммитом на face-ветке до мержа PR #3.
 ### 2026-07-06 — Задача 020: Face Mesh добавлен параллельным `FaceEngine` (НЕ расширением HandEngine и НЕ общим базовым классом — извлекать базу только при третьем движке). Метрики scale-invariant (`lib/faceMetrics.ts`), индексы именованы (`lib/faceLandmarks.ts`, стороны СУБЪЕКТА). Mode-свитчер BBT/Face — локальный useState (прецедент 013), камера перезапускается при переключении (принятый trade-off). Задача 021 (фильтры) спланирована.
 ### 2026-07-06 — Задача 019: ESLint 9 flat config добавлен. `react-hooks/refs`/`react-hooks/immutability` (новые React Compiler-ориентированные правила из eslint-plugin-react-hooks v7) отключены — конфликтуют с намеренным паттерном "лениво созданный controller в ref" (`useBBTSession.ts`), проект не использует React Compiler. Остальные правила (rules-of-hooks, exhaustive-deps, typescript-eslint type-aware) активны, `npm run lint` чист с первого прогона.
 ### 2026-07-06 — PR #1 смержен в `master` (merge commit, не squash — сохраняет гранулярность per-task коммитов). Задача 018 (clinician dashboard) начата на отдельной ветке от `master`, заблокирована Supabase org-квотой; пользователь решил ждать вместо смены организации.
