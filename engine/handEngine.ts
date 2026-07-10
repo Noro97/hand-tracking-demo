@@ -13,6 +13,10 @@ export interface HandEngineState {
  *  recording/replay fixtures (see features/replay.ts). */
 export interface RawHandFrame {
   handedness: Handedness;
+  /** MediaPipe's handedness-classification confidence — recorded so fixtures
+   *  can replay the score gate exactly (a face-as-hand false positive is only
+   *  reproducible if its low score is captured too). */
+  score: number;
   landmarks: NormalizedLandmark[];
 }
 
@@ -32,6 +36,15 @@ export interface HandEngineCallbacks {
 
 const HUD_UPDATE_INTERVAL_MS = 100;
 const MAX_HANDS = 2;
+
+// Raised from the 0.5 defaults after a live false positive: MediaPipe locked a
+// "hand" onto the user's mouth/beard and confirmed a pinch on it. Higher
+// thresholds make the detector far pickier about what counts as a hand.
+// Tunable trade-off: if REAL hands stop being detected in dim lighting, lower
+// MIN_DETECTION_CONFIDENCE first (the debug panel's per-hand score helps tell
+// a rejected real hand from a suppressed false positive).
+const MIN_DETECTION_CONFIDENCE = 0.75;
+const MIN_TRACKING_CONFIDENCE = 0.7;
 
 /**
  * The input video is shown mirrored (CSS scaleX(-1)) for a natural "selfie"
@@ -97,8 +110,8 @@ export class HandEngine {
     hands.setOptions({
       maxNumHands: MAX_HANDS,
       modelComplexity: 1,
-      minDetectionConfidence: 0.5,
-      minTrackingConfidence: 0.5,
+      minDetectionConfidence: MIN_DETECTION_CONFIDENCE,
+      minTrackingConfidence: MIN_TRACKING_CONFIDENCE,
     });
     hands.onResults((results) => this.onResults(results));
     this.hands = hands;
@@ -148,11 +161,12 @@ export class HandEngine {
       const landmarks = handsLandmarks[i];
       if (!landmarks) continue;
       const rawLabel = results.multiHandedness?.[i]?.label ?? 'Right';
+      const score = results.multiHandedness?.[i]?.score ?? 1;
       const handedness = resolveHandedness(rawLabel);
-      rawHands.push({ handedness, landmarks });
+      rawHands.push({ handedness, score, landmarks });
       if (present.has(handedness)) continue;
 
-      const obs = this.recognizer.recognize(handedness, landmarks, canvas.width, canvas.height, now);
+      const obs = this.recognizer.recognize(handedness, landmarks, canvas.width, canvas.height, now, score);
       if (!obs) continue;
 
       present.add(handedness);

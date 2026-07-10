@@ -48,7 +48,14 @@ export function replayFixture(fixture: RecordedFixture, options: ReplayOptions):
 
     const observations = frame.hands
       .map((hand) =>
-        recognizer.recognize(hand.handedness, hand.landmarks, fixture.meta.canvasWidth, fixture.meta.canvasHeight, frame.tMs),
+        recognizer.recognize(
+          hand.handedness,
+          hand.landmarks,
+          fixture.meta.canvasWidth,
+          fixture.meta.canvasHeight,
+          frame.tMs,
+          hand.score,
+        ),
       )
       .filter((obs) => obs !== null);
 

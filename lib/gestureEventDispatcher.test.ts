@@ -3,7 +3,7 @@ import { GestureEventDispatcher } from './gestureEventDispatcher';
 import type { HandObservation } from './recognition';
 
 function obs(handedness: 'Left' | 'Right', gestures: Record<string, boolean>): HandObservation {
-  return { handedness, pointer: { x: 0, y: 0 }, gestures, gestureDistances: {}, landmarks: [] };
+  return { handedness, handednessScore: 1, pointer: { x: 0, y: 0 }, gestures, gestureDistances: {}, landmarks: [] };
 }
 
 describe('GestureEventDispatcher', () => {
