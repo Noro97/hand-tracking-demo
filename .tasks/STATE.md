@@ -44,9 +44,13 @@
 
 **Задача 021: AR-фильтры реализованы и смержены** (PR #4, 10.07.2026) — декларативный реестр (`lib/filterRenderers.ts`): Glasses/Hat/Mustache на лицо, Ring/Nails на руки; ручные фильтры на отдельном экране "Hand Filters", клинический BBT не тронут. Три экрана: BBT Rehab / Face Tracking / Hand Filters. 020/021 — showcase-трек.
 
-**Задача 022 (`claude/hand-false-positive`): фикс ложного распознавания руки на лице** — пользователь прислал скриншот с реальной камеры: hand-скелет + подтверждённый pinch на его рту/бороде (BBT-экран). Фикс: пороги детекции 0.5 → 0.75/0.7 (`engine/handEngine.ts`); НОВЫЙ score-gate `MIN_HANDEDNESS_SCORE = 0.8` в `HandRecognizer.recognize()` (раньше `multiHandedness[i].score` игнорировался) — в recognizer, не в движке, чтобы replay применял то же отсечение; score виден в debug-панели и записывается в фикстуры. 54 теста (+3 регрессии).
+**Задача 022: фикс ложного распознавания руки на лице — смержен** (PR #5, 10.07.2026) — пороги детекции 0.5 → 0.75/0.7 + score-gate `MIN_HANDEDNESS_SCORE = 0.8` в recognizer (replay применяет то же отсечение); score в debug-панели и в фикстурах.
 
-Следующие шаги: (а) пользователь перепроверяет на ТОЙ ЖЕ камере: фантом на рту исчез И реальные руки всё ещё детектятся (пороги — стартовая калибровка); заодно посадку фильтров на Face/Hand-экранах; (б) 018 возобновляется после снятия Supabase-квоты; (в) неделя 5 MVP-плана (clinician dashboard) продолжается после 018.
+**Аудит 10.07 (code-quality, оценка 5/5):** отчёт в `.code-quality/reports/review-20260710-183850.md`. Главная находка — **[HIGH] в `features/bbtSession.ts`: persisted handedness relabel навсегда блокирует новые повторы** (`handleGestureStart` гейтит по неизменяемому `state.selectedHand`, а resume обновляет только `trackedHandedness`) — НЕ исправлено, следующий кандидат в задачи. Остальное: FaceEngine без confidence-hardening, дублирование engine/screen-кода (Row уже разъехался), 4 мёртвых экспорта, устаревший PROJECT-CONTEXT.md.
+
+**Задача 023 (`claude/two-hand-screen`): skindeck-style "экран между руками"** — по скриншотам-референсам пользователя (higgsfield). Новый концепт scene effects (обе руки + видеокадр, хук `getActiveSceneEffect` после per-hand цикла): квад из index+thumb tips обеих рук, аффинное отображение 2 треугольниками (canvas 2D, `lib/quadMapping.ts`, чистая математика с тестами), OneEuro-сглаживание углов, стилизация на 192×108 буфере. Эффекты: Poster (pink duotone) + ASCII (символы только симметричные — канвас зеркален, тест enforce'ит). `FilterPicker` переработан на секции. 66 тестов.
+
+Следующие шаги: (а) пользователь тестирует two-hand screen на реальной камере (вид эффектов, посадка квада, перф); (б) фикс [HIGH] из аудита (BBT persisted-relabel); (в) 018 возобновляется после снятия Supabase-квоты.
 
 ## Заблокировано
 - Задача 018 (clinician dashboard) — ждёт снятия Supabase org-квоты пользователем. Не блокирует ничего другого (независимая ветка).
@@ -67,6 +71,7 @@
 
 ## Решения
 <!-- новые сверху: дата, одна строка -->
+### 2026-07-10 — Задача 023: scene effects — отдельный концепт от per-hand фильтров (нужны обе руки + видеокадр → свой хук `getActiveSceneEffect` после per-hand цикла). Проекция на наклонный квад — аффинно 2 треугольниками на canvas 2D (без WebGL; шов прячется 0.5px-раздуванием clip). ASCII-рампа — только симметричные глифы (зеркальный канвас), enforce'ится тестом. `FilterPicker` → секции (одна панель, несколько групп).
 ### 2026-07-10 — Задача 022: face-as-hand false positive лечится ДВУМЯ слоями — пороги детекции движка (0.75/0.7) + score-gate (`MIN_HANDEDNESS_SCORE=0.8`) в `HandRecognizer.recognize()`. Гейт в recognizer (не в engine-цикле) — replay применяет то же отсечение (no-drift правило 017). `RawHandFrame.score` теперь в фикстурах — низко-скоровый фантом воспроизводим headless.
 ### 2026-07-10 — Задача 021: AR-фильтры через декларативный реестр (`lib/filterRenderers.ts`) + чистое якорение (`lib/filterAnchors.ts::segmentTransform`). Ручные фильтры — на отдельном playground-экране "Hand Filters", НЕ на клиническом BBT. Только симметричные canvas-примитивы (канвас CSS-зеркален — текст/асимметрия отзеркалились бы). `getActiveFilters` — стабильный identity через ref-паттерн (`useActiveFilters`), урок 017. Экран "руки+лицо одновременно" отложен (два solution на одном потоке дороже по CPU; Holistic — смена стека).
 ### 2026-07-10 — PR #2 (ESLint) и PR #3 (face tracking) смержены в master; конфликты `.tasks/`+`package.json` между ними разрешены merge-коммитом на face-ветке до мержа PR #3.

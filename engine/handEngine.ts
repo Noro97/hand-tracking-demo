@@ -2,6 +2,7 @@ import { COLORS, HAND_COLOR, POINTER_DOT_RADIUS, POINTER_RADIUS_IDLE, POINTER_RA
 import { drawActiveFilters } from '../lib/filterRenderers';
 import { GestureEventDispatcher } from '../lib/gestureEventDispatcher';
 import { HandRecognizer, type HandObservation, type Handedness } from '../lib/recognition';
+import { SceneEffectRenderer } from '../lib/sceneEffects';
 import type { CameraInstance, HandsInstance, HandsResults, NormalizedLandmark } from '../types';
 
 export interface HandEngineState {
@@ -32,6 +33,9 @@ export interface HandEngineCallbacks {
   onRawFrame?: (hands: RawHandFrame[], timestampMs: number) => void;
   /** Active AR-filter ids to draw this frame. Identity must be stable (read state via ref). */
   getActiveFilters?: () => readonly string[];
+  /** Active two-hand scene effect (or null) — drawn between both hands when both are visible.
+   *  Identity must be stable (read state via ref). */
+  getActiveSceneEffect?: () => string | null;
 }
 
 const HUD_UPDATE_INTERVAL_MS = 100;
@@ -72,6 +76,7 @@ export class HandEngine {
   private readonly resizeObserver: ResizeObserver;
 
   private readonly gestureEvents = new GestureEventDispatcher();
+  private readonly sceneEffects = new SceneEffectRenderer();
 
   private hands: HandsInstance | null = null;
   private camera: CameraInstance | null = null;
@@ -179,6 +184,11 @@ export class HandEngine {
     }
 
     this.callbacks.onRawFrame?.(rawHands, now);
+
+    const sceneEffect = this.callbacks.getActiveSceneEffect?.() ?? null;
+    if (sceneEffect) {
+      this.sceneEffects.draw(ctx, sceneEffect, observations, results.image, canvas.width, canvas.height, now);
+    }
 
     this.recognizer.retainOnly(present);
     this.gestureEvents.dispatch(observations, this.callbacks.onGestureStart, this.callbacks.onGestureEnd);

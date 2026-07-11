@@ -4,7 +4,9 @@ import { Hand } from 'lucide-react';
 
 import { useActiveFilters } from '../hooks/useActiveFilters';
 import { useHandTracking } from '../hooks/useHandTracking';
+import { useSceneEffect } from '../hooks/useSceneEffect';
 import { HAND_FILTERS } from '../lib/filterRenderers';
+import { SCENE_EFFECTS } from '../lib/sceneEffects';
 import FilterPicker from './FilterPicker';
 import LoadingOverlay from './LoadingOverlay';
 import MobileBlocker from './MobileBlocker';
@@ -19,8 +21,10 @@ const HandFilterDemo: FC = () => {
   const containerRef = useRef<HTMLDivElement>(null);
 
   const filters = useActiveFilters();
+  const sceneEffect = useSceneEffect();
   const { loading, hands } = useHandTracking(videoRef, canvasRef, containerRef, {
     getActiveFilters: filters.getActiveFilters,
+    getActiveSceneEffect: sceneEffect.getActiveSceneEffect,
   });
 
   return (
@@ -45,12 +49,23 @@ const HandFilterDemo: FC = () => {
           </div>
         </div>
 
-        <FilterPicker filters={HAND_FILTERS} active={filters.active} onToggle={filters.toggle} />
+        <FilterPicker
+          sections={[
+            { title: 'Filters', items: HAND_FILTERS, active: filters.active, onToggle: filters.toggle },
+            {
+              title: 'Screen',
+              items: SCENE_EFFECTS,
+              active: sceneEffect.active ? [sceneEffect.active] : [],
+              onToggle: sceneEffect.select,
+            },
+          ]}
+        />
 
         <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-40 max-w-[90vw]">
           <div className="bg-surface/90 px-6 py-3 rounded-full border border-border backdrop-blur-sm">
             <p className="text-sm text-text-primary text-center">
-              Show your hands to the camera and toggle a filter — it follows your fingers live.
+              Toggle a filter and show your hands — it follows your fingers. Pick a Screen effect and raise BOTH
+              hands to stretch a stylized display between them.
             </p>
           </div>
         </div>
