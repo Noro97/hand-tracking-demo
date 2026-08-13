@@ -61,6 +61,78 @@ export function quadFromHands(hands: HandObservation[], width: number, height: n
   return corners.map((c) => toPx(c!, width, height)) as QuadCorners;
 }
 
+/** A sub-rectangle of a source image, in that image's own pixel space. */
+export interface SourceRect {
+  sx: number;
+  sy: number;
+  sw: number;
+  sh: number;
+}
+
+/**
+ * Pixel dimensions of any CanvasImageSource. Duck-typed rather than
+ * instanceof-checked so it works for video, image, canvas, ImageBitmap and
+ * VideoFrame alike. Returns null when the source has no usable size yet
+ * (e.g. a video before metadata loads).
+ */
+export function sourceSize(source: CanvasImageSource): { width: number; height: number } | null {
+  const candidate = source as Partial<{
+    videoWidth: number;
+    videoHeight: number;
+    naturalWidth: number;
+    naturalHeight: number;
+    displayWidth: number;
+    displayHeight: number;
+    width: unknown;
+    height: unknown;
+  }>;
+
+  const plainWidth = typeof candidate.width === 'number' ? candidate.width : 0;
+  const plainHeight = typeof candidate.height === 'number' ? candidate.height : 0;
+  const width = candidate.videoWidth || candidate.naturalWidth || candidate.displayWidth || plainWidth;
+  const height = candidate.videoHeight || candidate.naturalHeight || candidate.displayHeight || plainHeight;
+
+  return width > 0 && height > 0 ? { width, height } : null;
+}
+
+/**
+ * The region of the source image lying *behind* the quad, so the hand-held
+ * screen reads as a window onto the scene rather than a shrunken copy of the
+ * whole frame. Uses the quad's axis-aligned bounding box: a rotated quad
+ * therefore shows slightly more than it strictly covers, which is invisible in
+ * practice and far cheaper than true inverse sampling.
+ *
+ * The engine draws the source stretched to fill the canvas, so canvas
+ * coordinates scale linearly into source coordinates. Returns null when the
+ * quad lies entirely off-canvas.
+ */
+export function sourceRectForQuad(
+  quad: QuadCorners,
+  canvasWidth: number,
+  canvasHeight: number,
+  srcWidth: number,
+  srcHeight: number,
+): SourceRect | null {
+  if (canvasWidth <= 0 || canvasHeight <= 0) return null;
+
+  const xs = quad.map((p) => p.x);
+  const ys = quad.map((p) => p.y);
+  const left = Math.max(0, Math.min(...xs));
+  const right = Math.min(canvasWidth, Math.max(...xs));
+  const top = Math.max(0, Math.min(...ys));
+  const bottom = Math.min(canvasHeight, Math.max(...ys));
+  if (right <= left || bottom <= top) return null;
+
+  const scaleX = srcWidth / canvasWidth;
+  const scaleY = srcHeight / canvasHeight;
+  return {
+    sx: left * scaleX,
+    sy: top * scaleY,
+    sw: (right - left) * scaleX,
+    sh: (bottom - top) * scaleY,
+  };
+}
+
 /**
  * Draws `source` stretched onto an arbitrary (convex-ish) quad by splitting it
  * into two triangles and affine-mapping each half — the canvas-2D substitute

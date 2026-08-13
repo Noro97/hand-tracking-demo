@@ -1,6 +1,13 @@
 import { AnimeGanStylizer } from './animeGan';
 import { ONE_EURO_BETA, ONE_EURO_D_CUTOFF, ONE_EURO_MIN_CUTOFF, OneEuroFilter } from './filters';
-import { drawImageInQuad, quadFromHands, type QuadCorners } from './quadMapping';
+import {
+  drawImageInQuad,
+  quadFromHands,
+  sourceRectForQuad,
+  sourceSize,
+  type QuadCorners,
+  type SourceRect,
+} from './quadMapping';
 import type { HandObservation } from './recognition';
 
 /**
@@ -13,8 +20,29 @@ import type { HandObservation } from './recognition';
 export interface SceneEffectDef {
   id: string;
   label: string;
-  /** Redraws the low-res texture buffer from the current camera frame. */
-  stylize: (buffer: CanvasRenderingContext2D, source: CanvasImageSource, bw: number, bh: number) => void;
+  /**
+   * Redraws the low-res texture buffer from `rect` — the region of the camera
+   * frame lying behind the quad, not the whole frame — so the screen reads as
+   * a window onto the scene instead of a shrunken copy of everything.
+   */
+  stylize: (
+    buffer: CanvasRenderingContext2D,
+    source: CanvasImageSource,
+    bw: number,
+    bh: number,
+    rect: SourceRect,
+  ) => void;
+}
+
+/** Shared first step of every effect: crop the region behind the quad into the buffer. */
+function drawCropped(
+  buffer: CanvasRenderingContext2D,
+  source: CanvasImageSource,
+  bw: number,
+  bh: number,
+  rect: SourceRect,
+): void {
+  buffer.drawImage(source, rect.sx, rect.sy, rect.sw, rect.sh, 0, 0, bw, bh);
 }
 
 /** Texture buffer resolution — deliberately low: cheap per-pixel work and a lo-fi look. */
@@ -41,8 +69,14 @@ export function asciiGlyph(luminance: number): string {
   return ASCII_RAMP[index]!;
 }
 
-function stylizePoster(buffer: CanvasRenderingContext2D, source: CanvasImageSource, bw: number, bh: number): void {
-  buffer.drawImage(source, 0, 0, bw, bh);
+function stylizePoster(
+  buffer: CanvasRenderingContext2D,
+  source: CanvasImageSource,
+  bw: number,
+  bh: number,
+  rect: SourceRect,
+): void {
+  drawCropped(buffer, source, bw, bh, rect);
   const image = buffer.getImageData(0, 0, bw, bh);
   const px = image.data;
   for (let i = 0; i < px.length; i += 4) {
@@ -58,8 +92,14 @@ function stylizePoster(buffer: CanvasRenderingContext2D, source: CanvasImageSour
 /** Character cell size in buffer pixels — 6px cells on a 192×108 buffer = a 32×18 glyph grid. */
 const ASCII_CELL = 6;
 
-function stylizeAscii(buffer: CanvasRenderingContext2D, source: CanvasImageSource, bw: number, bh: number): void {
-  buffer.drawImage(source, 0, 0, bw, bh);
+function stylizeAscii(
+  buffer: CanvasRenderingContext2D,
+  source: CanvasImageSource,
+  bw: number,
+  bh: number,
+  rect: SourceRect,
+): void {
+  drawCropped(buffer, source, bw, bh, rect);
   const image = buffer.getImageData(0, 0, bw, bh);
   const px = image.data;
 
@@ -93,10 +133,16 @@ function stylizeAscii(buffer: CanvasRenderingContext2D, source: CanvasImageSourc
  */
 const animeGanStylizer = new AnimeGanStylizer();
 
-function stylizeAnime(buffer: CanvasRenderingContext2D, source: CanvasImageSource, bw: number, bh: number): void {
+function stylizeAnime(
+  buffer: CanvasRenderingContext2D,
+  source: CanvasImageSource,
+  bw: number,
+  bh: number,
+  rect: SourceRect,
+): void {
   animeGanStylizer.ensureStarted();
 
-  buffer.drawImage(source, 0, 0, bw, bh);
+  drawCropped(buffer, source, bw, bh, rect);
   animeGanStylizer.submit(buffer.getImageData(0, 0, bw, bh).data, bw, bh);
 
   const latest = animeGanStylizer.getLatest();
@@ -143,11 +189,18 @@ export class SceneEffectRenderer {
     }
 
     const smoothed = this.smooth(quad, now);
+
+    // Sample only what lies behind the quad. Uses the SMOOTHED corners so the
+    // sampled region tracks the rendered frame rather than the jittery raw one.
+    const size = sourceSize(source);
+    const rect = size ? sourceRectForQuad(smoothed, width, height, size.width, size.height) : null;
+    if (!rect) return;
+
     const buffer = this.ensureBuffer();
     const bufferCtx = buffer.getContext('2d');
     if (!bufferCtx) return;
 
-    effect.stylize(bufferCtx, source, BUFFER_W, BUFFER_H);
+    effect.stylize(bufferCtx, source, BUFFER_W, BUFFER_H, rect);
 
     ctx.save();
     ctx.imageSmoothingEnabled = false;

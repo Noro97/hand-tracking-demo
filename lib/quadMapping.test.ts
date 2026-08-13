@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { affineFromTriangle, quadFromHands } from './quadMapping';
+import { affineFromTriangle, quadFromHands, sourceRectForQuad, sourceSize, type QuadCorners } from './quadMapping';
 import { LM } from './landmarks';
 import type { HandObservation, Handedness } from './recognition';
 import type { NormalizedLandmark, Point } from '../types';
@@ -87,5 +87,72 @@ describe('quadFromHands', () => {
     };
     const hands = [handWithTips('Left', lm(0.2, 0.3), lm(0.25, 0.7)), noThumb];
     expect(quadFromHands(hands, 100, 100)).toBeNull();
+  });
+});
+
+describe('sourceSize', () => {
+  it('prefers intrinsic video dimensions over layout size', () => {
+    const video = { videoWidth: 1280, videoHeight: 720, width: 640, height: 360 };
+    expect(sourceSize(video as unknown as CanvasImageSource)).toEqual({ width: 1280, height: 720 });
+  });
+
+  it('falls back to plain width/height for canvas and ImageBitmap', () => {
+    expect(sourceSize({ width: 192, height: 108 } as unknown as CanvasImageSource)).toEqual({
+      width: 192,
+      height: 108,
+    });
+  });
+
+  it('returns null when no usable size is available yet', () => {
+    expect(sourceSize({ width: 0, height: 0 } as unknown as CanvasImageSource)).toBeNull();
+    expect(sourceSize({} as unknown as CanvasImageSource)).toBeNull();
+  });
+});
+
+describe('sourceRectForQuad', () => {
+  const quad = (x0: number, y0: number, x1: number, y1: number): QuadCorners => [
+    { x: x0, y: y0 },
+    { x: x1, y: y0 },
+    { x: x1, y: y1 },
+    { x: x0, y: y1 },
+  ];
+
+  it('returns the quad bounding box when source and canvas match 1:1', () => {
+    expect(sourceRectForQuad(quad(20, 30, 80, 70), 100, 100, 100, 100)).toEqual({
+      sx: 20,
+      sy: 30,
+      sw: 60,
+      sh: 40,
+    });
+  });
+
+  it('scales canvas coordinates into a differently-sized source', () => {
+    // Canvas 640x360 displaying a 1280x720 camera frame → exactly 2x.
+    expect(sourceRectForQuad(quad(10, 20, 50, 60), 640, 360, 1280, 720)).toEqual({
+      sx: 20,
+      sy: 40,
+      sw: 80,
+      sh: 80,
+    });
+  });
+
+  it('clamps a quad extending past the canvas edges', () => {
+    const rect = sourceRectForQuad(quad(-50, -50, 40, 40), 100, 100, 100, 100);
+    expect(rect).toEqual({ sx: 0, sy: 0, sw: 40, sh: 40 });
+  });
+
+  it('uses the bounding box of a rotated quad', () => {
+    const rotated: QuadCorners = [
+      { x: 50, y: 10 },
+      { x: 90, y: 50 },
+      { x: 50, y: 90 },
+      { x: 10, y: 50 },
+    ];
+    expect(sourceRectForQuad(rotated, 100, 100, 100, 100)).toEqual({ sx: 10, sy: 10, sw: 80, sh: 80 });
+  });
+
+  it('returns null for an entirely off-canvas quad or a zero-sized canvas', () => {
+    expect(sourceRectForQuad(quad(-90, -90, -10, -10), 100, 100, 100, 100)).toBeNull();
+    expect(sourceRectForQuad(quad(10, 10, 50, 50), 0, 0, 100, 100)).toBeNull();
   });
 });
