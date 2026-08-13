@@ -44,21 +44,36 @@ export function affineFromTriangle(src: [Point, Point, Point], dst: [Point, Poin
  * tip (top edge) and thumb tip (bottom edge). Returns null unless BOTH hands
  * are present with the needed landmarks — the screen only exists between two
  * hands.
+ *
+ * NOTE: corners are ordered by actual canvas x, never by the handedness label.
+ * `SWAP_HANDEDNESS` makes "Left" mean "the hand the user sees on screen-left",
+ * and because the canvas is CSS-mirrored that hand sits at the LARGER canvas x.
+ * Ordering by label therefore wound the quad backwards and mirrored the texture
+ * relative to the scene behind it. Sorting geometrically also keeps the quad
+ * from self-intersecting when the user crosses their hands.
  */
 export function quadFromHands(hands: HandObservation[], width: number, height: number): QuadCorners | null {
-  const left = hands.find((h) => h.handedness === 'Left');
-  const right = hands.find((h) => h.handedness === 'Right');
-  if (!left || !right) return null;
+  const first = hands.find((h) => h.handedness === 'Left');
+  const second = hands.find((h) => h.handedness === 'Right');
+  if (!first || !second) return null;
 
-  const corners: Array<NormalizedLandmark | undefined> = [
-    left.landmarks[LM.INDEX_TIP],
-    right.landmarks[LM.INDEX_TIP],
-    right.landmarks[LM.THUMB_TIP],
-    left.landmarks[LM.THUMB_TIP],
+  const tips = (hand: HandObservation): { index: NormalizedLandmark; thumb: NormalizedLandmark } | null => {
+    const index = hand.landmarks[LM.INDEX_TIP];
+    const thumb = hand.landmarks[LM.THUMB_TIP];
+    return index && thumb ? { index, thumb } : null;
+  };
+
+  const a = tips(first);
+  const b = tips(second);
+  if (!a || !b) return null;
+
+  const [nearer, farther] = a.index.x <= b.index.x ? [a, b] : [b, a];
+  return [
+    toPx(nearer.index, width, height),
+    toPx(farther.index, width, height),
+    toPx(farther.thumb, width, height),
+    toPx(nearer.thumb, width, height),
   ];
-  if (corners.some((c) => c === undefined)) return null;
-
-  return corners.map((c) => toPx(c!, width, height)) as QuadCorners;
 }
 
 /** A sub-rectangle of a source image, in that image's own pixel space. */

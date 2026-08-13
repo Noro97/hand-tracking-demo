@@ -66,6 +66,24 @@ describe('quadFromHands', () => {
     ]);
   });
 
+  it('orders corners by canvas x, not by handedness label (mirror regression)', () => {
+    // SWAP_HANDEDNESS makes "Left" mean screen-left, and the CSS-mirrored canvas
+    // puts that hand at the LARGER canvas x. Label-ordering wound the quad
+    // backwards here and mirrored the texture against the scene behind it.
+    const hands = [
+      handWithTips('Left', lm(0.8, 0.3), lm(0.75, 0.7)),
+      handWithTips('Right', lm(0.2, 0.3), lm(0.25, 0.7)),
+    ];
+    const quad = quadFromHands(hands, 100, 100);
+    expect(quad).toEqual([
+      { x: 20, y: 30 }, // TL — geometrically leftmost index tip
+      { x: 80, y: 30 }, // TR
+      { x: 75, y: 70 }, // BR
+      { x: 25, y: 70 }, // BL
+    ]);
+    expect(quad![0].x).toBeLessThan(quad![1].x);
+  });
+
   it('returns null when either hand is missing', () => {
     const onlyLeft = [handWithTips('Left', lm(0.2, 0.3), lm(0.25, 0.7))];
     expect(quadFromHands(onlyLeft, 100, 100)).toBeNull();
