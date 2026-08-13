@@ -26,3 +26,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# AnimeGANv2 model — downloaded by scripts/fetch-anime-model.mjs (npm run fetch-model)
+/public/models/

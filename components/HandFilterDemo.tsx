@@ -1,12 +1,12 @@
 import type { FC } from 'react';
-import { useRef } from 'react';
+import { useCallback, useRef, useSyncExternalStore } from 'react';
 import { Hand } from 'lucide-react';
 
 import { useActiveFilters } from '../hooks/useActiveFilters';
 import { useHandTracking } from '../hooks/useHandTracking';
 import { useSceneEffect } from '../hooks/useSceneEffect';
 import { HAND_FILTERS } from '../lib/filterRenderers';
-import { SCENE_EFFECTS } from '../lib/sceneEffects';
+import { getAnimeGanStylizer, SCENE_EFFECTS } from '../lib/sceneEffects';
 import FilterPicker from './FilterPicker';
 import LoadingOverlay from './LoadingOverlay';
 import MobileBlocker from './MobileBlocker';
@@ -26,6 +26,7 @@ const HandFilterDemo: FC = () => {
     getActiveFilters: filters.getActiveFilters,
     getActiveSceneEffect: sceneEffect.getActiveSceneEffect,
   });
+  const modelStatus = useAnimeGanStatus(sceneEffect.active === 'anime');
 
   return (
     <div className="flex w-full h-screen bg-page text-text-primary overflow-hidden font-roboto">
@@ -61,6 +62,12 @@ const HandFilterDemo: FC = () => {
           ]}
         />
 
+        {modelStatus && (
+          <div className="absolute top-6 left-6 mt-24 z-40 bg-surface px-4 py-2 rounded-full border border-border text-xs font-mono text-text-muted">
+            {modelStatus}
+          </div>
+        )}
+
         <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-40 max-w-[90vw]">
           <div className="bg-surface/90 px-6 py-3 rounded-full border border-border backdrop-blur-sm">
             <p className="text-sm text-text-primary text-center">
@@ -73,5 +80,45 @@ const HandFilterDemo: FC = () => {
     </div>
   );
 };
+
+/**
+ * Reads the AnimeGAN stylizer's status. The stylizer is an external mutable
+ * store driven by the canvas loop, not by React, so this subscribes via
+ * useSyncExternalStore with a low-frequency poll — and unsubscribes entirely
+ * when the effect isn't selected. Snapshots are plain strings, so React's
+ * identity check settles naturally once the status stops changing.
+ */
+function useAnimeGanStatus(enabled: boolean): string | null {
+  const subscribe = useCallback(
+    (onStoreChange: () => void) => {
+      if (!enabled) return () => {};
+      const id = window.setInterval(onStoreChange, 500);
+      return () => window.clearInterval(id);
+    },
+    [enabled],
+  );
+
+  const getSnapshot = useCallback((): string | null => {
+    if (!enabled) return null;
+    const stylizer = getAnimeGanStylizer();
+    switch (stylizer.getStatus()) {
+      case 'loading':
+        return 'AnimeGAN: loading model…';
+      case 'ready':
+        return `AnimeGAN: running (${stylizer.getBackend() ?? 'unknown'})`;
+      case 'error': {
+        const message = stylizer.getError() ?? 'unavailable';
+        // Only a fetch failure is fixable by downloading the model; a backend
+        // failure is not, and saying otherwise sends the reader down a dead end.
+        const hint = /fetch|404|load model|protobuf/i.test(message) ? ' — run npm run fetch-model' : '';
+        return `AnimeGAN: ${message}${hint}`;
+      }
+      default:
+        return 'AnimeGAN: starting…';
+    }
+  }, [enabled]);
+
+  return useSyncExternalStore(subscribe, getSnapshot);
+}
 
 export default HandFilterDemo;

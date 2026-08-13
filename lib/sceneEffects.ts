@@ -1,3 +1,4 @@
+import { AnimeGanStylizer } from './animeGan';
 import { ONE_EURO_BETA, ONE_EURO_D_CUTOFF, ONE_EURO_MIN_CUTOFF, OneEuroFilter } from './filters';
 import { drawImageInQuad, quadFromHands, type QuadCorners } from './quadMapping';
 import type { HandObservation } from './recognition';
@@ -83,9 +84,35 @@ function stylizeAscii(buffer: CanvasRenderingContext2D, source: CanvasImageSourc
   }
 }
 
+/**
+ * AnimeGANv2 stylization. The model runs in a worker at its own pace; each
+ * frame paints the newest finished result, so the camera never waits on it.
+ * Until the first result lands (model download + first inference) the raw
+ * frame is shown, which also covers the "model not fetched" case — the UI
+ * surfaces the real status separately via {@link animeGanStylizer}.
+ */
+const animeGanStylizer = new AnimeGanStylizer();
+
+function stylizeAnime(buffer: CanvasRenderingContext2D, source: CanvasImageSource, bw: number, bh: number): void {
+  animeGanStylizer.ensureStarted();
+
+  buffer.drawImage(source, 0, 0, bw, bh);
+  animeGanStylizer.submit(buffer.getImageData(0, 0, bw, bh).data, bw, bh);
+
+  const latest = animeGanStylizer.getLatest();
+  if (latest && latest.width === bw && latest.height === bh) {
+    buffer.putImageData(latest, 0, 0);
+  }
+}
+
+export function getAnimeGanStylizer(): AnimeGanStylizer {
+  return animeGanStylizer;
+}
+
 export const SCENE_EFFECTS: SceneEffectDef[] = [
   { id: 'poster', label: 'Poster', stylize: stylizePoster },
   { id: 'ascii', label: 'ASCII', stylize: stylizeAscii },
+  { id: 'anime', label: 'Anime AI', stylize: stylizeAnime },
 ];
 
 /**
