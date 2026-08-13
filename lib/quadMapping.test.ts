@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { affineFromTriangle, quadFromHands, sourceRectForQuad, sourceSize, type QuadCorners } from './quadMapping';
+import {
+  affineFromTriangle,
+  quadFromHands,
+  remapLandmarksToRect,
+  sourceRectForQuad,
+  sourceSize,
+  type QuadCorners,
+} from './quadMapping';
 import { LM } from './landmarks';
 import type { HandObservation, Handedness } from './recognition';
 import type { NormalizedLandmark, Point } from '../types';
@@ -172,5 +179,42 @@ describe('sourceRectForQuad', () => {
   it('returns null for an entirely off-canvas quad or a zero-sized canvas', () => {
     expect(sourceRectForQuad(quad(-90, -90, -10, -10), 100, 100, 100, 100)).toBeNull();
     expect(sourceRectForQuad(quad(10, 10, 50, 50), 0, 0, 100, 100)).toBeNull();
+  });
+});
+
+describe('remapLandmarksToRect', () => {
+  const rect = { sx: 320, sy: 180, sw: 320, sh: 180 }; // bottom-right quadrant of a 640x360 source
+
+  it('maps a landmark at the crop centre to the buffer centre', () => {
+    const [mapped] = remapLandmarksToRect([{ x: 0.75, y: 0.75, z: 0 }], 640, 360, rect);
+    expect(mapped!.x).toBeCloseTo(0.5);
+    expect(mapped!.y).toBeCloseTo(0.5);
+  });
+
+  it('maps the crop corners to 0 and 1', () => {
+    const mapped = remapLandmarksToRect(
+      [
+        { x: 0.5, y: 0.5, z: 0 }, // top-left of the crop
+        { x: 1, y: 1, z: 0 }, // bottom-right of the crop
+      ],
+      640,
+      360,
+      rect,
+    );
+    expect(mapped[0]!.x).toBeCloseTo(0);
+    expect(mapped[0]!.y).toBeCloseTo(0);
+    expect(mapped[1]!.x).toBeCloseTo(1);
+    expect(mapped[1]!.y).toBeCloseTo(1);
+  });
+
+  it('yields out-of-range values for landmarks outside the crop rather than clamping', () => {
+    const [mapped] = remapLandmarksToRect([{ x: 0.1, y: 0.1, z: 0 }], 640, 360, rect);
+    expect(mapped!.x).toBeLessThan(0);
+    expect(mapped!.y).toBeLessThan(0);
+  });
+
+  it('preserves depth and returns empty for a degenerate rect', () => {
+    expect(remapLandmarksToRect([{ x: 0.75, y: 0.75, z: 0.42 }], 640, 360, rect)[0]!.z).toBe(0.42);
+    expect(remapLandmarksToRect([{ x: 0.5, y: 0.5, z: 0 }], 640, 360, { sx: 0, sy: 0, sw: 0, sh: 0 })).toEqual([]);
   });
 });

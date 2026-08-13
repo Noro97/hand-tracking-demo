@@ -5,7 +5,7 @@ import { Hand } from 'lucide-react';
 import { useActiveFilters } from '../hooks/useActiveFilters';
 import { useHandTracking } from '../hooks/useHandTracking';
 import { useSceneEffect } from '../hooks/useSceneEffect';
-import { HAND_FILTERS } from '../lib/filterRenderers';
+import { FACE_FILTERS, HAND_FILTERS } from '../lib/filterRenderers';
 import { getAnimeGanStylizer, SCENE_EFFECTS } from '../lib/sceneEffects';
 import FilterPicker from './FilterPicker';
 import LoadingOverlay from './LoadingOverlay';
@@ -21,10 +21,12 @@ const HandFilterDemo: FC = () => {
   const containerRef = useRef<HTMLDivElement>(null);
 
   const filters = useActiveFilters();
+  const sceneFaceFilters = useActiveFilters();
   const sceneEffect = useSceneEffect();
   const { loading, hands } = useHandTracking(videoRef, canvasRef, containerRef, {
     getActiveFilters: filters.getActiveFilters,
     getActiveSceneEffect: sceneEffect.getActiveSceneEffect,
+    getSceneFaceFilters: sceneFaceFilters.getActiveFilters,
   });
   const modelStatus = useAnimeGanStatus(sceneEffect.active === 'anime');
 
@@ -58,6 +60,12 @@ const HandFilterDemo: FC = () => {
               items: SCENE_EFFECTS,
               active: sceneEffect.active ? [sceneEffect.active] : [],
               onToggle: sceneEffect.select,
+            },
+            {
+              title: 'In frame',
+              items: FACE_FILTERS,
+              active: sceneFaceFilters.active,
+              onToggle: sceneFaceFilters.toggle,
             },
           ]}
         />

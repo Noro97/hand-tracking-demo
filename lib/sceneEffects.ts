@@ -1,14 +1,23 @@
 import { AnimeGanStylizer } from './animeGan';
 import { ONE_EURO_BETA, ONE_EURO_D_CUTOFF, ONE_EURO_MIN_CUTOFF, OneEuroFilter } from './filters';
+import { drawActiveFilters } from './filterRenderers';
 import {
   drawImageInQuad,
   quadFromHands,
+  remapLandmarksToRect,
   sourceRectForQuad,
   sourceSize,
   type QuadCorners,
   type SourceRect,
 } from './quadMapping';
 import type { HandObservation } from './recognition';
+import type { NormalizedLandmark } from '../types';
+
+/** Face overlays drawn inside the two-hand screen (e.g. glasses on the face behind it). */
+export interface SceneFaceOverlay {
+  landmarks: NormalizedLandmark[] | null;
+  filterIds: readonly string[];
+}
 
 /**
  * Scene effects are the two-hand sibling of the per-hand filter registry: a
@@ -180,6 +189,7 @@ export class SceneEffectRenderer {
     width: number,
     height: number,
     now: number,
+    face?: SceneFaceOverlay,
   ): void {
     const effect = SCENE_EFFECTS.find((e) => e.id === effectId);
     const quad = effect ? quadFromHands(hands, width, height) : null;
@@ -201,6 +211,13 @@ export class SceneEffectRenderer {
     if (!bufferCtx) return;
 
     effect.stylize(bufferCtx, source, BUFFER_W, BUFFER_H, rect);
+
+    // Face overlays go on AFTER stylization so they stay crisp vector shapes
+    // rather than being posterized/ASCII-ified along with the photo.
+    if (face?.landmarks && face.filterIds.length > 0 && size) {
+      const remapped = remapLandmarksToRect(face.landmarks, size.width, size.height, rect);
+      drawActiveFilters(bufferCtx, face.filterIds, 'face', remapped, BUFFER_W, BUFFER_H);
+    }
 
     ctx.save();
     ctx.imageSmoothingEnabled = false;

@@ -149,6 +149,29 @@ export function sourceRectForQuad(
 }
 
 /**
+ * Re-expresses whole-frame normalized landmarks as normalized coordinates
+ * *within* `rect`, so overlays anchored to the full camera frame (face
+ * filters) can be drawn into the cropped texture buffer instead.
+ *
+ * Values outside 0..1 mean the landmark falls outside the crop — left as-is
+ * rather than clamped, so a partially-visible face still draws its visible
+ * part correctly and simply spills past the buffer edge.
+ */
+export function remapLandmarksToRect(
+  landmarks: NormalizedLandmark[],
+  srcWidth: number,
+  srcHeight: number,
+  rect: SourceRect,
+): NormalizedLandmark[] {
+  if (rect.sw <= 0 || rect.sh <= 0) return [];
+  return landmarks.map((lm) => ({
+    x: (lm.x * srcWidth - rect.sx) / rect.sw,
+    y: (lm.y * srcHeight - rect.sy) / rect.sh,
+    z: lm.z,
+  }));
+}
+
+/**
  * Draws `source` stretched onto an arbitrary (convex-ish) quad by splitting it
  * into two triangles and affine-mapping each half — the canvas-2D substitute
  * for projective texture mapping. `sw`/`sh` are the source's pixel size.
