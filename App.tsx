@@ -4,13 +4,15 @@ import { useState } from 'react';
 import BBTSessionDemo from './components/BBTSessionDemo';
 import FaceTrackingDemo from './components/FaceTrackingDemo';
 import HandFilterDemo from './components/HandFilterDemo';
+import ShootingGameDemo from './components/ShootingGameDemo';
 
-type Mode = 'bbt' | 'face' | 'hands';
+type Mode = 'bbt' | 'face' | 'hands' | 'shoot';
 
 const SCREENS: Record<Mode, FC> = {
   bbt: BBTSessionDemo,
   face: FaceTrackingDemo,
   hands: HandFilterDemo,
+  shoot: ShootingGameDemo,
 };
 
 /**
@@ -40,6 +42,9 @@ const ModeSwitcher: FC<{ mode: Mode; onChange: (mode: Mode) => void }> = ({ mode
     </ModeButton>
     <ModeButton active={mode === 'hands'} onClick={() => onChange('hands')} activeClass="bg-accent-yellow/20 text-accent-yellow">
       Hand Filters
+    </ModeButton>
+    <ModeButton active={mode === 'shoot'} onClick={() => onChange('shoot')} activeClass="bg-accent-red/20 text-accent-red">
+      Shooting
     </ModeButton>
   </div>
 );
