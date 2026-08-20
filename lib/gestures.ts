@@ -9,7 +9,6 @@ import { PINCH_DEBOUNCE_MS, PINCH_ENTER_REL, PINCH_EXIT_REL } from './filters';
  */
 export interface GestureDef {
   id: string;
-  label: string;
   fingerA: number;
   fingerB: number;
   enterRel: number;
@@ -21,12 +20,11 @@ export interface GestureDef {
  * Thumb tip touching the index fingertip — the one gesture the BBT
  * measurement loop (`features/bbtSession.ts`) reacts to as a "grab".
  */
-export const GESTURES: GestureDef[] = [gesture('thumb-index', 'Index', LM.INDEX_TIP)];
+export const GESTURES: GestureDef[] = [gesture('thumb-index', LM.INDEX_TIP)];
 
-function gesture(id: string, label: string, fingerTip: number): GestureDef {
+function gesture(id: string, fingerTip: number): GestureDef {
   return {
     id,
-    label,
     fingerA: LM.THUMB_TIP,
     fingerB: fingerTip,
     enterRel: PINCH_ENTER_REL,

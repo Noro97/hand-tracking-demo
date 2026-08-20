@@ -26,7 +26,7 @@
 - **Сборка:** Vite 6 + React 19 + TypeScript ~5.8 (strict, `noUncheckedIndexedAccess`), Tailwind v4 через `@tailwindcss/vite`, lucide-react
 - **CV/ML:** `@mediapipe/hands` + `@mediapipe/face_mesh` + camera_utils + drawing_utils — UMD-глобалы, локальные ассеты из `public/mediapipe/` (~40 МБ, регенерируются `postinstall`)
 - **AI:** AnimeGANv2 ONNX через `onnxruntime-web` (WebGPU→WASM), инференс в Web Worker. Модель gitignored, ставится `npm run fetch-model`
-- **Тесты:** Vitest, `environment: 'node'`, **115 тестов в 15 файлах** — только чистый логический слой (`lib/*`, `features/bbtSession`, `features/replay`, `features/shootingGame`)
+- **Тесты:** Vitest, `environment: 'node'`, **132 теста в 18 файлах** — только чистый логический слой (`lib/*`, `features/bbtSession`, `features/replay`, `features/shootingGame`)
 - **Линт:** ESLint 9 flat config, type-aware. Правила `react-hooks/refs` и `immutability` отключены осознанно (конфликтуют с намеренным паттерном «controller в ref»)
 
 ## 3. Команды
@@ -78,8 +78,15 @@ npm run postinstall  # регенерировать MediaPipe-артефакты
 | 023 | «Экран между руками» (квад, аффинная проекция) | PR #6 🔶 открыт |
 | 024 | AnimeGANv2 в браузере (WebGPU 49 мс / ~20 fps) | PR #6 🔶 |
 | 025 | Игра-стрелялка на жесте «пистолет» | PR #6 🔶 |
+| 026 | Фикс [HIGH]: устойчивый relabel в BBT | ✅ закрыта |
+| 027 | Фаза 0.1 шутера: снять зеркало с игрового слоя | ✅ закрыта |
+| 028 | Фаза 0.2–0.4 шутера: спрайты, AudioBus, rAF | ✅ закрыта |
+| 029 | Grace-период для сглаживания квада в SceneEffectRenderer | ✅ закрыта |
+| 030 | Confidence-hardening для FaceEngine | ✅ закрыта |
+| 031 | Дедупликация HudRow, download.ts, RawHandFrame, зачистка экспортов | ✅ закрыта |
+| 032 | Прицел: курсор вместо луча + сглаживание (фикс тряски и «не туда стреляет») | ✅ закрыта |
 
-**Аудит 10.07** (оценка 5/5): `.code-quality/reports/review-20260710-183850.md`. Находки не закрыты — перенесены в `BACKLOG.md`.
+**Аудит 10.07** (все замечания устранены в задачах 026–031).
 
 ## 7. Куда смотреть дальше
 

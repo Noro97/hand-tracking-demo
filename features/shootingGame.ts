@@ -1,5 +1,6 @@
-import { aimRay, pointAlongRay, rayCircleHit, type Ray } from '../lib/aiming';
-import { PinchTracker } from '../lib/filters';
+import { aimFromHand, mirrorAim, pointInCircle, type Aim } from '../lib/aiming';
+import type { SoundEffect } from '../lib/audioBus';
+import { OneEuroFilter, PinchTracker } from '../lib/filters';
 import {
   isPistolPose,
   triggerDistance,
@@ -17,7 +18,17 @@ const TARGET_LIFETIME_MS = 4200;
 /** Keeps spawns clear of the canvas edge so a whole target is always reachable. */
 const SPAWN_MARGIN_PX = 70;
 const TRACER_LIFETIME_MS = 140;
-const TRACER_LENGTH_PX = 2000;
+
+/**
+ * Cursor smoothing. Raw fingertip landmarks jitter every frame; without this
+ * the crosshair visibly shakes and fine aim is impossible. Tuned a little
+ * livelier than the BBT pointer (higher beta) because a game cursor must keep
+ * up with fast flicks — raise beta further if it feels laggy, raise minCutoff
+ * if it still shakes.
+ */
+const CURSOR_MIN_CUTOFF = 1.0;
+const CURSOR_BETA = 0.02;
+const CURSOR_D_CUTOFF = 1.0;
 
 export interface Target {
   id: number;
@@ -38,7 +49,7 @@ export interface Tracer {
 export interface AimState {
   handedness: Handedness;
   armed: boolean;
-  ray: Ray | null;
+  aim: Aim | null;
 }
 
 export interface ShootingGameState {
@@ -78,6 +89,7 @@ export class ShootingGameController {
   private state: ShootingGameState = { ...INITIAL_STATE };
   private readonly triggers = new Map<Handedness, PinchTracker>();
   private readonly wasPulled = new Map<Handedness, boolean>();
+  private readonly cursorFilters = new Map<Handedness, { x: OneEuroFilter; y: OneEuroFilter }>();
   private nextTargetId = 1;
   private lastSpawnAt = 0;
 
@@ -85,6 +97,7 @@ export class ShootingGameController {
     private readonly onStateChange: (state: ShootingGameState) => void,
     private readonly now: () => number = Date.now,
     private readonly random: () => number = Math.random,
+    private readonly onSound?: (sound: SoundEffect) => void,
   ) {}
 
   getState(): ShootingGameState {
@@ -94,6 +107,7 @@ export class ShootingGameController {
   start(): void {
     this.triggers.clear();
     this.wasPulled.clear();
+    this.cursorFilters.clear();
     this.nextTargetId = 1;
     // -Infinity, not 0: the first frame must spawn immediately whatever the
     // clock's origin. Anchoring at 0 only looks right because Date.now() is
@@ -109,27 +123,43 @@ export class ShootingGameController {
     this.onStateChange(this.state);
   }
 
-  /** Per camera frame: age the world, read each hand's pose, fire on trigger edges. */
-  frame(hands: HandObservation[], width: number, height: number): void {
+  /** Advances world simulation (target spawning and expiration, tracer lifetime). Can run on rAF. */
+  tick(now: number = this.now(), width: number, height: number): void {
     if (!this.state.running) return;
-    const now = this.now();
 
-    let targets = this.state.targets.filter((target) => target.expiresAt > now);
+    const unexpiredTargets = this.state.targets.filter((target) => target.expiresAt > now);
+    if (unexpiredTargets.length < this.state.targets.length) {
+      this.onSound?.('expire');
+    }
+    let targets = unexpiredTargets;
     const tracers = this.state.tracers.filter((tracer) => now - tracer.firedAt < TRACER_LIFETIME_MS);
 
     if (targets.length < MAX_TARGETS && now - this.lastSpawnAt >= SPAWN_INTERVAL_MS) {
       this.lastSpawnAt = now;
       targets = [...targets, this.spawnTarget(width, height, now)];
+      this.onSound?.('spawn');
     }
 
+    this.state = { ...this.state, targets, tracers };
+    this.onStateChange(this.state);
+  }
+
+  /** Processes hand gesture input and triggers shooting. */
+  input(hands: HandObservation[], width: number, height: number, now: number = this.now()): void {
+    if (!this.state.running) return;
+
     const aims: AimState[] = [];
-    let { score, shots, hits } = this.state;
+    let { score, shots, hits, targets } = this.state;
+    const { tracers } = this.state;
     const newTracers: Tracer[] = [];
 
     for (const hand of hands) {
       const armed = isPistolPose(hand.landmarks);
-      const ray = armed ? aimRay(hand.landmarks, width, height) : null;
-      aims.push({ handedness: hand.handedness, armed, ray });
+      const rawAim = armed ? aimFromHand(hand.landmarks, width, height) : null;
+      // Mirror once (the game layer opts out of the CSS mirror), then smooth,
+      // so the filters track the coordinates actually drawn on screen.
+      const aim = rawAim ? this.smoothAim(hand.handedness, mirrorAim(rawAim, width), now) : this.resetCursor(hand.handedness);
+      aims.push({ handedness: hand.handedness, armed, aim });
 
       const tracker = this.trackerFor(hand.handedness);
       // A non-pistol hand must not accumulate trigger state, or lowering the
@@ -139,22 +169,60 @@ export class ShootingGameController {
       const justPulled = pulled && this.wasPulled.get(hand.handedness) !== true;
       this.wasPulled.set(hand.handedness, pulled);
 
-      if (!justPulled || !ray) continue;
+      if (!justPulled || !aim) continue;
 
       shots++;
-      const struck = nearestHit(ray, targets);
+      this.onSound?.('shoot');
+      const struck = nearestHit(aim.cursor, targets);
       if (struck) {
         hits++;
         score += 100;
-        targets = targets.filter((target) => target.id !== struck.target.id);
-        newTracers.push({ from: ray.origin, to: struck.point, firedAt: now, hit: true });
+        targets = targets.filter((target) => target.id !== struck.id);
+        this.onSound?.('hit');
       } else {
-        newTracers.push({ from: ray.origin, to: pointAlongRay(ray, TRACER_LENGTH_PX), firedAt: now, hit: false });
+        this.onSound?.('miss');
       }
+      // The tracer always ends at the cursor: the shot lands where you aimed,
+      // hit or miss, so a miss reads as "I was off target" rather than as a
+      // shot flying off in some unrelated direction.
+      newTracers.push({ from: aim.muzzle, to: aim.cursor, firedAt: now, hit: struck !== null });
     }
 
     this.state = { ...this.state, score, shots, hits, targets, tracers: [...tracers, ...newTracers], aims };
     this.onStateChange(this.state);
+  }
+
+  /** Per camera frame convenience: simulation tick + gesture input. */
+  frame(hands: HandObservation[], width: number, height: number): void {
+    if (!this.state.running) return;
+    const now = this.now();
+    this.tick(now, width, height);
+    this.input(hands, width, height, now);
+  }
+
+  /** Smooths the cursor per hand, so landmark jitter does not shake the crosshair. */
+  private smoothAim(handedness: Handedness, aim: Aim, now: number): Aim {
+    let filters = this.cursorFilters.get(handedness);
+    if (!filters) {
+      filters = {
+        x: new OneEuroFilter(CURSOR_MIN_CUTOFF, CURSOR_BETA, CURSOR_D_CUTOFF),
+        y: new OneEuroFilter(CURSOR_MIN_CUTOFF, CURSOR_BETA, CURSOR_D_CUTOFF),
+      };
+      this.cursorFilters.set(handedness, filters);
+    }
+    return {
+      cursor: { x: filters.x.filter(aim.cursor.x, now), y: filters.y.filter(aim.cursor.y, now) },
+      muzzle: aim.muzzle,
+    };
+  }
+
+  /** Drops smoothing history when the hand stops aiming, so re-arming snaps to
+   *  the finger instead of sliding in from the last known position. */
+  private resetCursor(handedness: Handedness): null {
+    const filters = this.cursorFilters.get(handedness);
+    filters?.x.reset();
+    filters?.y.reset();
+    return null;
   }
 
   private resetTrigger(handedness: Handedness): boolean {
@@ -183,16 +251,16 @@ export class ShootingGameController {
   }
 }
 
-/** Closest target the ray strikes, so a shot can't punch through a nearer one. */
-function nearestHit(ray: Ray, targets: Target[]): { target: Target; point: Point } | null {
-  let best: { target: Target; point: Point; distance: number } | null = null;
+/** Closest target under the cursor, so overlapping targets resolve nearest-first. */
+function nearestHit(cursor: Point, targets: Target[]): Target | null {
+  let best: { target: Target; distance: number } | null = null;
 
   for (const target of targets) {
-    const distance = rayCircleHit(ray, target.center, target.radius);
-    if (distance === null) continue;
+    if (!pointInCircle(cursor, target.center, target.radius)) continue;
+    const distance = Math.hypot(cursor.x - target.center.x, cursor.y - target.center.y);
     if (!best || distance < best.distance) {
-      best = { target, point: pointAlongRay(ray, distance), distance };
+      best = { target, distance };
     }
   }
-  return best ? { target: best.target, point: best.point } : null;
+  return best?.target ?? null;
 }

@@ -197,4 +197,45 @@ describe('BBTSessionController', () => {
     expect(summary.avgDurationMs).toBe(summary.reps[0]?.durationMs);
     expect(controller.getLastSummary()).toEqual(summary);
   });
+
+  it('counts subsequent reps when a handedness relabel persists for the rest of the session', () => {
+    const controller = makeController();
+    controller.start('Left', 60_000);
+
+    // Rep 1 starts as Left
+    controller.handleGestureStart('Left', 'thumb-index');
+    controller.frame([hand('Left', 20)]);
+    vi.setSystemTime(50);
+    controller.frame([hand('Left', 60)]);
+    vi.setSystemTime(60);
+    controller.handleGestureEnd('Left', 'thumb-index');
+
+    // Relabel during Rep 1: switches to Right nearby and finishes Rep 1
+    vi.setSystemTime(70);
+    controller.handleGestureStart('Right', 'thumb-index');
+    vi.setSystemTime(110);
+    controller.frame([hand('Right', 65)]);
+    vi.setSystemTime(150);
+    controller.frame([hand('Right', 150)]);
+    controller.handleGestureEnd('Right', 'thumb-index');
+
+    vi.setSystemTime(150 + 260);
+    controller.tick();
+
+    expect(controller.getState().blockCount).toBe(1);
+    expect(controller.getState().selectedHand).toBe('Right');
+
+    // Rep 2 arrives under the new label (Right) without reverting to Left
+    vi.setSystemTime(500);
+    controller.handleGestureStart('Right', 'thumb-index');
+    controller.frame([hand('Right', 180)]); // compartment B
+    vi.setSystemTime(550);
+    controller.frame([hand('Right', 20)]); // back to compartment A
+    controller.handleGestureEnd('Right', 'thumb-index');
+
+    vi.setSystemTime(550 + 260);
+    controller.tick();
+
+    expect(controller.getState().blockCount).toBe(2);
+  });
 });

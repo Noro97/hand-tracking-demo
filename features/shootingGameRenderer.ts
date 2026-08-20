@@ -1,21 +1,21 @@
-import { pointAlongRay } from '../lib/aiming';
+import type { SpriteAtlas } from '../lib/spriteSheet';
 import type { ShootingGameState } from './shootingGame';
 
 const TRACER_LIFETIME_MS = 140;
-const CROSSHAIR_DISTANCE_PX = 260;
 
 /**
  * Draws the game world onto its own stacked canvas. Kept apart from
  * {@link ShootingGameController} so the game's state machine stays DOM-free
  * and unit-testable while this handles only pixels.
  *
- * Deliberately shape-only, no text: this canvas inherits the global
- * `canvas { scaleX(-1) }` mirror, so any glyph would render backwards.
+ * Rendered on an un-mirrored canvas (`transform: none`) with coordinates
+ * mapped via `mirrorX()`, so text, sprites, and asymmetrical shapes render correctly.
  */
 export function renderShootingGame(
   ctx: CanvasRenderingContext2D,
   state: ShootingGameState,
   now: number,
+  atlas?: SpriteAtlas | null,
 ): void {
   ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
   if (!state.running) return;
@@ -29,14 +29,18 @@ export function renderShootingGame(
 
     ctx.save();
     ctx.translate(target.center.x, target.center.y);
-    ctx.strokeStyle = life < 0.25 ? '#ef5350' : '#fdd835';
-    ctx.fillStyle = 'rgba(253, 216, 53, 0.14)';
-    ctx.lineWidth = 3;
-    for (const scale of [1, 0.62, 0.24]) {
-      ctx.beginPath();
-      ctx.arc(0, 0, radius * scale, 0, Math.PI * 2);
-      if (scale === 1) ctx.fill();
-      ctx.stroke();
+
+    const spriteDrawn = atlas?.draw(ctx, 'target', -radius, -radius, radius * 2, radius * 2) ?? false;
+    if (!spriteDrawn) {
+      ctx.strokeStyle = life < 0.25 ? '#ef5350' : '#fdd835';
+      ctx.fillStyle = 'rgba(253, 216, 53, 0.14)';
+      ctx.lineWidth = 3;
+      for (const scale of [1, 0.62, 0.24]) {
+        ctx.beginPath();
+        ctx.arc(0, 0, radius * scale, 0, Math.PI * 2);
+        if (scale === 1) ctx.fill();
+        ctx.stroke();
+      }
     }
     ctx.restore();
   }
@@ -63,8 +67,10 @@ export function renderShootingGame(
   }
 
   for (const aim of state.aims) {
-    if (!aim.armed || !aim.ray) continue;
-    const crosshair = pointAlongRay(aim.ray, CROSSHAIR_DISTANCE_PX);
+    if (!aim.armed || !aim.aim) continue;
+    // The crosshair sits ON the fingertip — no projection, so it cannot drift
+    // away from the hand or amplify jitter.
+    const crosshair = aim.aim.cursor;
 
     ctx.save();
     ctx.strokeStyle = 'rgba(102, 187, 106, 0.9)';
@@ -84,7 +90,7 @@ export function renderShootingGame(
     ctx.globalAlpha = 0.35;
     ctx.setLineDash([6, 10]);
     ctx.beginPath();
-    ctx.moveTo(aim.ray.origin.x, aim.ray.origin.y);
+    ctx.moveTo(aim.aim.muzzle.x, aim.aim.muzzle.y);
     ctx.lineTo(crosshair.x, crosshair.y);
     ctx.stroke();
     ctx.restore();

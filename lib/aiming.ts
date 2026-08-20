@@ -2,63 +2,52 @@ import type { NormalizedLandmark, Point } from '../types';
 import { toPx } from './filterAnchors';
 import { LM } from './landmarks';
 
-/** A ray in canvas pixel space. `direction` is always unit length. */
-export interface Ray {
-  origin: Point;
-  direction: Point;
+/**
+ * Where a pistol hand is aiming.
+ *
+ * The CURSOR is the fingertip itself, not a point projected along the finger's
+ * direction. That is deliberate and is the difference between aiming that
+ * works and aiming that doesn't:
+ *
+ * - Pointing *at the screen* is the natural way to aim, but it is exactly the
+ *   case where a projected ray dies: knuckle and tip collapse onto nearly the
+ *   same 2D point, so the direction degenerates into noise (or vanishes).
+ * - Angular noise at the fingertip is amplified by however far the crosshair
+ *   is thrown down the ray. A cursor has no lever arm, so it cannot amplify.
+ *
+ * The MUZZLE (index knuckle) is kept only so a tracer can be drawn from the
+ * hand to the cursor. It never participates in hit detection.
+ */
+export interface Aim {
+  cursor: Point;
+  muzzle: Point;
 }
 
-/**
- * The line the index finger points along, in canvas pixel space: it starts at
- * the fingertip and continues in the knuckle→tip direction, so a tracer drawn
- * along it appears to leave the finger. Returns null if the finger's landmarks
- * are missing or degenerate (tip exactly on the knuckle gives no direction).
- */
-export function aimRay(landmarks: NormalizedLandmark[], width: number, height: number): Ray | null {
-  const mcp = landmarks[LM.INDEX_MCP];
+export function aimFromHand(landmarks: NormalizedLandmark[], width: number, height: number): Aim | null {
   const tip = landmarks[LM.INDEX_TIP];
-  if (!mcp || !tip) return null;
+  const mcp = landmarks[LM.INDEX_MCP];
+  if (!tip || !mcp) return null;
 
-  const origin = toPx(tip, width, height);
-  const from = toPx(mcp, width, height);
-  const dx = origin.x - from.x;
-  const dy = origin.y - from.y;
-  const length = Math.hypot(dx, dy);
-  if (length < 1e-6) return null;
+  return { cursor: toPx(tip, width, height), muzzle: toPx(mcp, width, height) };
+}
 
-  return { origin, direction: { x: dx / length, y: dy / length } };
+/** Whether the cursor is over a target. Hit detection is this simple by design. */
+export function pointInCircle(point: Point, center: Point, radius: number): boolean {
+  return Math.hypot(point.x - center.x, point.y - center.y) <= radius;
 }
 
 /**
- * Distance along `ray` at which it first enters the circle, or null if it
- * misses or the circle lies behind the muzzle. Standard quadratic solve,
- * relying on `direction` being unit length so the `a` coefficient is 1.
+ * Mirrors a point horizontally across a canvas of the given width.
+ *
+ * Landmarks arrive in un-mirrored camera space, while the video the user sees
+ * is CSS-mirrored (`canvas { scaleX(-1) }` in index.html). The game layer opts
+ * out of that CSS mirror so its sprites and text render the right way round,
+ * which means its coordinates must be mirrored here instead — exactly once.
  */
-export function rayCircleHit(ray: Ray, center: Point, radius: number): number | null {
-  const mx = ray.origin.x - center.x;
-  const my = ray.origin.y - center.y;
-
-  const b = mx * ray.direction.x + my * ray.direction.y;
-  const c = mx * mx + my * my - radius * radius;
-
-  // Pointing away from a circle we're already outside of.
-  if (c > 0 && b > 0) return null;
-
-  const discriminant = b * b - c;
-  if (discriminant < 0) return null;
-
-  const root = Math.sqrt(discriminant);
-  const near = -b - root;
-  if (near >= 0) return near;
-
-  const far = -b + root;
-  return far >= 0 ? far : null;
+export function mirrorX(point: Point, width: number): Point {
+  return { x: width - point.x, y: point.y };
 }
 
-/** The point `distance` along the ray — where a tracer ends, or a hit lands. */
-export function pointAlongRay(ray: Ray, distance: number): Point {
-  return {
-    x: ray.origin.x + ray.direction.x * distance,
-    y: ray.origin.y + ray.direction.y * distance,
-  };
+export function mirrorAim(aim: Aim, width: number): Aim {
+  return { cursor: mirrorX(aim.cursor, width), muzzle: mirrorX(aim.muzzle, width) };
 }

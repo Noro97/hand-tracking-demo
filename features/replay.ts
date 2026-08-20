@@ -5,7 +5,7 @@ import type { RecordedFixture } from '../lib/fixtures';
 
 export interface ReplayOptions {
   selectedHand: Handedness;
-  /** Session length in ms — should be >= the fixture's recorded duration or the session will time out mid-replay. */
+  /** Session length in ms — defaults to fixture's recorded duration + 1ms. */
   durationMs?: number;
 }
 

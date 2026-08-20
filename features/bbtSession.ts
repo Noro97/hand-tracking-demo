@@ -1,3 +1,4 @@
+import { downloadJson } from '../lib/download';
 import { distPx } from '../lib/geometry';
 import type { HandObservation, Handedness } from '../lib/recognition';
 import type { Point } from '../types';
@@ -226,13 +227,7 @@ export class BBTSessionController {
   /** Triggers a JSON file download of the most recently completed session, if any. */
   exportJson(): void {
     if (!this.lastSummary) return;
-    const blob = new Blob([JSON.stringify(this.lastSummary, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `bbt-session-${this.lastSummary.selectedHand}-${this.lastSummary.endedAt}.json`;
-    link.click();
-    URL.revokeObjectURL(url);
+    downloadJson(this.lastSummary, `bbt-session-${this.lastSummary.selectedHand}-${this.lastSummary.endedAt}.json`);
   }
 
   private tryResumeFromCandidate(hands: HandObservation[]): void {
@@ -247,6 +242,8 @@ export class BBTSessionController {
     }
 
     this.trackedHandedness = rep.candidateHandedness;
+    this.state = { ...this.state, selectedHand: this.trackedHandedness };
+    this.onStateChange(this.state);
     rep.pendingSince = null;
     rep.candidateHandedness = null;
     rep.lastPoint = candidate.pointer;

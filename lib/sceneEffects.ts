@@ -170,16 +170,28 @@ export const SCENE_EFFECTS: SceneEffectDef[] = [
   { id: 'anime', label: 'Anime AI', stylize: stylizeAnime },
 ];
 
+/** How long we tolerate a temporary tracking dropout (1-2 lost frames) before resetting smoothing state. */
+export const QUAD_GRACE_MS = 250;
+
 /**
  * Stateful renderer the engine owns: smooths the four quad corners with the
  * same One Euro filter the pointer uses (raw fingertip landmarks jitter), and
- * keeps the offscreen texture buffer. Smoothing state resets whenever the
- * screen disappears (a hand left the frame), so a re-formed screen doesn't
- * lerp in from its last position.
+ * keeps the offscreen texture buffer. Smoothing state resets only after a grace
+ * period (`QUAD_GRACE_MS`) of lost tracking, so brief 1-frame dropouts don't pop.
  */
 export class SceneEffectRenderer {
-  private buffer: HTMLCanvasElement | null = null;
+  private buffer: HTMLCanvasElement | OffscreenCanvas | null = null;
   private filters: OneEuroFilter[] | null = null;
+  private lastSeenAt = 0;
+
+  constructor(
+    private readonly createBuffer: () => HTMLCanvasElement | OffscreenCanvas | null = defaultBufferFactory,
+  ) {}
+
+  /** Diagnostic/testing helper to inspect active smoothing filter presence. */
+  hasFilters(): boolean {
+    return this.filters !== null;
+  }
 
   draw(
     ctx: CanvasRenderingContext2D,
@@ -194,9 +206,16 @@ export class SceneEffectRenderer {
     const effect = SCENE_EFFECTS.find((e) => e.id === effectId);
     const quad = effect ? quadFromHands(hands, width, height) : null;
     if (!effect || !quad) {
-      this.filters = null;
+      if (this.filters && now - this.lastSeenAt >= QUAD_GRACE_MS) {
+        this.filters = null;
+      }
       return;
     }
+
+    if (this.filters && now - this.lastSeenAt >= QUAD_GRACE_MS) {
+      this.filters = null;
+    }
+    this.lastSeenAt = now;
 
     const smoothed = this.smooth(quad, now);
 
@@ -207,7 +226,8 @@ export class SceneEffectRenderer {
     if (!rect) return;
 
     const buffer = this.ensureBuffer();
-    const bufferCtx = buffer.getContext('2d');
+    if (!buffer) return;
+    const bufferCtx = buffer.getContext('2d') as CanvasRenderingContext2D | null;
     if (!bufferCtx) return;
 
     effect.stylize(bufferCtx, source, BUFFER_W, BUFFER_H, rect);
@@ -235,11 +255,13 @@ export class SceneEffectRenderer {
     ctx.restore();
   }
 
-  private ensureBuffer(): HTMLCanvasElement {
+  private ensureBuffer(): HTMLCanvasElement | OffscreenCanvas | null {
     if (!this.buffer) {
-      this.buffer = document.createElement('canvas');
-      this.buffer.width = BUFFER_W;
-      this.buffer.height = BUFFER_H;
+      this.buffer = this.createBuffer();
+      if (this.buffer) {
+        this.buffer.width = BUFFER_W;
+        this.buffer.height = BUFFER_H;
+      }
     }
     return this.buffer;
   }
@@ -257,4 +279,14 @@ export class SceneEffectRenderer {
       y: f[i * 2 + 1]!.filter(p.y, now),
     })) as QuadCorners;
   }
+}
+
+function defaultBufferFactory(): HTMLCanvasElement | OffscreenCanvas | null {
+  if (typeof document !== 'undefined') {
+    return document.createElement('canvas');
+  }
+  if (typeof OffscreenCanvas !== 'undefined') {
+    return new OffscreenCanvas(BUFFER_W, BUFFER_H);
+  }
+  return null;
 }
