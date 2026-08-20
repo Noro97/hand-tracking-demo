@@ -26,7 +26,6 @@ export const FL = {
   // Face frame
   TEMPLE_RIGHT: 234,
   TEMPLE_LEFT: 454,
-  CHIN: 152,
   FOREHEAD: 10,
   NOSE_TIP: 1,
 } as const;

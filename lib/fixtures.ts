@@ -1,4 +1,4 @@
-import type { RawHandFrame } from '../engine/handEngine';
+import type { RawHandFrame } from './recognition';
 
 /**
  * The on-disk shape of a recorded (or hand-authored) landmark session. Used

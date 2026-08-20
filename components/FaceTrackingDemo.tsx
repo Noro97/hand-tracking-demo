@@ -31,7 +31,7 @@ const FaceTrackingDemo: FC = () => {
         {loading && <LoadingOverlay />}
 
         <FaceHud faceDetected={faceDetected} metrics={metrics} />
-        <FilterPicker filters={FACE_FILTERS} active={filters.active} onToggle={filters.toggle} />
+        <FilterPicker sections={[{ title: 'Filters', items: FACE_FILTERS, active: filters.active, onToggle: filters.toggle }]} />
 
         <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-40 max-w-[90vw]">
           <div className="bg-surface/90 px-6 py-3 rounded-full border border-border backdrop-blur-sm">

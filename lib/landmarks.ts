@@ -27,21 +27,3 @@ export const LM = {
   PINKY_DIP: 19,
   PINKY_TIP: 20,
 } as const;
-
-export type FingerName = 'thumb' | 'index' | 'middle' | 'ring' | 'pinky';
-
-export const FINGER_TIP: Record<FingerName, number> = {
-  thumb: LM.THUMB_TIP,
-  index: LM.INDEX_TIP,
-  middle: LM.MIDDLE_TIP,
-  ring: LM.RING_TIP,
-  pinky: LM.PINKY_TIP,
-};
-
-export const FINGER_MCP: Record<FingerName, number> = {
-  thumb: LM.THUMB_MCP,
-  index: LM.INDEX_MCP,
-  middle: LM.MIDDLE_MCP,
-  ring: LM.RING_MCP,
-  pinky: LM.PINKY_MCP,
-};

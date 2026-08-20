@@ -2,7 +2,15 @@ import { COLORS, HAND_COLOR, POINTER_DOT_RADIUS, POINTER_RADIUS_IDLE, POINTER_RA
 import { drawActiveFilters } from '../lib/filterRenderers';
 import { GestureEventDispatcher } from '../lib/gestureEventDispatcher';
 import { HandRecognizer, type HandObservation, type Handedness } from '../lib/recognition';
-import type { CameraInstance, HandsInstance, HandsResults, NormalizedLandmark } from '../types';
+import { SceneEffectRenderer } from '../lib/sceneEffects';
+import type {
+  CameraInstance,
+  FaceMeshInstance,
+  FaceMeshResults,
+  HandsInstance,
+  HandsResults,
+  NormalizedLandmark,
+} from '../types';
 
 export interface HandEngineState {
   hands: HandObservation[];
@@ -32,6 +40,14 @@ export interface HandEngineCallbacks {
   onRawFrame?: (hands: RawHandFrame[], timestampMs: number) => void;
   /** Active AR-filter ids to draw this frame. Identity must be stable (read state via ref). */
   getActiveFilters?: () => readonly string[];
+  /** Active two-hand scene effect (or null) — drawn between both hands when both are visible.
+   *  Identity must be stable (read state via ref). */
+  getActiveSceneEffect?: () => string | null;
+  /** Face-filter ids to draw INSIDE the two-hand screen. Returning a non-empty
+   *  list lazily spins up Face Mesh on this engine's existing camera; returning
+   *  nothing keeps it off, so there's no cost when the feature is unused.
+   *  Identity must be stable (read state via ref). */
+  getSceneFaceFilters?: () => readonly string[];
 }
 
 const HUD_UPDATE_INTERVAL_MS = 100;
@@ -72,8 +88,11 @@ export class HandEngine {
   private readonly resizeObserver: ResizeObserver;
 
   private readonly gestureEvents = new GestureEventDispatcher();
+  private readonly sceneEffects = new SceneEffectRenderer();
 
   private hands: HandsInstance | null = null;
+  private faceMesh: FaceMeshInstance | null = null;
+  private latestFaceLandmarks: NormalizedLandmark[] | null = null;
   private camera: CameraInstance | null = null;
   private mounted = false;
   private reportedReady = false;
@@ -118,7 +137,12 @@ export class HandEngine {
 
     this.camera = new CameraCtor(this.video, {
       onFrame: async () => {
-        if (this.hands && this.video) await this.hands.send({ image: this.video });
+        if (!this.video) return;
+        if (this.hands) await this.hands.send({ image: this.video });
+        // Same camera drives both models — a second Camera instance on one
+        // video element would fight this one for frames.
+        const face = this.ensureFaceMesh();
+        if (face) await face.send({ image: this.video });
       },
       width: 1280,
       height: 720,
@@ -126,13 +150,39 @@ export class HandEngine {
     this.camera.start();
   }
 
+  /** Creates Face Mesh on first actual need and never tears it down; model
+   *  init is costly enough that toggling it per frame would stutter. */
+  private ensureFaceMesh(): FaceMeshInstance | null {
+    if (this.faceMesh) return this.faceMesh;
+    if ((this.callbacks.getSceneFaceFilters?.() ?? []).length === 0) return null;
+
+    const FaceMeshCtor = window.FaceMesh;
+    if (!FaceMeshCtor) return null;
+
+    const faceMesh = new FaceMeshCtor({ locateFile: (file) => `/mediapipe/face_mesh/${file}` });
+    faceMesh.setOptions({
+      maxNumFaces: 1,
+      refineLandmarks: false,
+      minDetectionConfidence: 0.5,
+      minTrackingConfidence: 0.5,
+    });
+    faceMesh.onResults((results: FaceMeshResults) => {
+      this.latestFaceLandmarks = results.multiFaceLandmarks?.[0] ?? null;
+    });
+    this.faceMesh = faceMesh;
+    return faceMesh;
+  }
+
   stop(): void {
     this.mounted = false;
     this.resizeObserver.disconnect();
     this.camera?.stop();
     this.hands?.close();
+    this.faceMesh?.close();
     this.camera = null;
     this.hands = null;
+    this.faceMesh = null;
+    this.latestFaceLandmarks = null;
   }
 
   private onResults(results: HandsResults): void {
@@ -179,6 +229,14 @@ export class HandEngine {
     }
 
     this.callbacks.onRawFrame?.(rawHands, now);
+
+    const sceneEffect = this.callbacks.getActiveSceneEffect?.() ?? null;
+    if (sceneEffect) {
+      this.sceneEffects.draw(ctx, sceneEffect, observations, results.image, canvas.width, canvas.height, now, {
+        landmarks: this.latestFaceLandmarks,
+        filterIds: this.callbacks.getSceneFaceFilters?.() ?? [],
+      });
+    }
 
     this.recognizer.retainOnly(present);
     this.gestureEvents.dispatch(observations, this.callbacks.onGestureStart, this.callbacks.onGestureEnd);

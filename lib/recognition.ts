@@ -13,6 +13,20 @@ import { LM } from './landmarks';
 export type Handedness = 'Left' | 'Right';
 
 /**
+ * Per-hand detection as emitted by MediaPipe, after the handedness swap
+ * but before the per-frame same-label dedup — the raw material for
+ * recording/replay fixtures (see features/replay.ts).
+ */
+export interface RawHandFrame {
+  handedness: Handedness;
+  /** MediaPipe's handedness-classification confidence — recorded so fixtures
+   *  can replay the score gate exactly (a face-as-hand false positive is only
+   *  reproducible if its low score is captured too). */
+  score: number;
+  landmarks: NormalizedLandmark[];
+}
+
+/**
  * Detections whose MediaPipe handedness-classification score falls below this
  * are rejected outright. Face/beard textures occasionally false-positive as a
  * "hand" (observed live: a hand skeleton locked onto the user's mouth and even

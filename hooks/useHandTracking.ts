@@ -15,7 +15,13 @@ export interface HandTrackingState {
  */
 type ForwardedCallbacks = Pick<
   HandEngineCallbacks,
-  'onGestureStart' | 'onGestureEnd' | 'onFrame' | 'onRawFrame' | 'getActiveFilters'
+    | 'onGestureStart'
+  | 'onGestureEnd'
+  | 'onFrame'
+  | 'onRawFrame'
+  | 'getActiveFilters'
+  | 'getActiveSceneEffect'
+  | 'getSceneFaceFilters'
 >;
 
 export function useHandTracking(
@@ -27,7 +33,15 @@ export function useHandTracking(
   const [loading, setLoading] = useState(true);
   const [hands, setHands] = useState<HandObservation[]>([]);
 
-  const { onGestureStart, onGestureEnd, onFrame, onRawFrame, getActiveFilters } = callbacks ?? {};
+  const {
+    onGestureStart,
+    onGestureEnd,
+    onFrame,
+    onRawFrame,
+    getActiveFilters,
+    getActiveSceneEffect,
+    getSceneFaceFilters,
+  } = callbacks ?? {};
 
   useEffect(() => {
     const video = videoRef.current;
@@ -43,11 +57,13 @@ export function useHandTracking(
       onFrame,
       onRawFrame,
       getActiveFilters,
+      getActiveSceneEffect,
+      getSceneFaceFilters,
     });
     engine.start();
 
     return () => engine.stop();
-  }, [videoRef, canvasRef, containerRef, onGestureStart, onGestureEnd, onFrame, onRawFrame, getActiveFilters]);
+  }, [videoRef, canvasRef, containerRef, onGestureStart, onGestureEnd, onFrame, onRawFrame, getActiveFilters, getActiveSceneEffect, getSceneFaceFilters]);
 
   return { loading, hands };
 }
